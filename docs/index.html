@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>modelmonitor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { font: 14px/1.5 system-ui, sans-serif; max-width: 720px; margin: 3em auto; padding: 0 1em; color: #222; }
+      code { background: #f4f4f4; padding: 0 0.3em; border-radius: 3px; }
+      a { color: #0366d6; }
+      pre { background: #f4f4f4; padding: 1em; border-radius: 4px; overflow-x: auto; }
+    </style>
+  </head>
+  <body>
+    <h1>modelmonitor</h1>
+    <p>Daily-refreshed manifest of current Claude / OpenAI / Gemini model IDs.</p>
+    <h2>Pull</h2>
+    <p><a href="./models.json"><code>models.json</code></a> — read <code>providers.&lt;provider&gt;.families.&lt;family&gt;.recommended</code>.</p>
+    <pre>curl https://jmill.github.io/modelmonitor/models.json \
+  | jq -r '.providers.anthropic.families.sonnet.recommended'</pre>
+    <p>Schema: <a href="./schema.json"><code>schema.json</code></a></p>
+    <h2>Push</h2>
+    <p>Register your repo in <a href="https://github.com/JMill/modelmonitor/blob/main/registry.yml"><code>registry.yml</code></a> to receive automated bump PRs.</p>
+    <p><a href="https://github.com/JMill/modelmonitor">Source &rarr;</a></p>
+  </body>
+</html>
