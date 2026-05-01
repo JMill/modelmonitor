@@ -1,0 +1,21 @@
+# Push-mode consumer registry. modelmonitor opens PRs against these repos
+# when the family's `recommended` model differs from what's pinned in `file`.
+#
+# Fields:
+#   repo:                 owner/repo (must be writable by BUMP_PR_TOKEN)
+#   file:                 path within the consumer repo
+#   pattern:              JS-flavor regex matched globally; substring(s) replaced
+#   replacement_template: '{recommended}' is interpolated with the manifest value
+#   family:               '<provider>.<family>' key from manifest
+#                         (anthropic.{opus,sonnet,haiku} / openai.{gpt-5,gpt-4o,o-series,...} / google.gemini-...)
+#   branch_prefix:        PR branch namespace (default: chore/model-bump)
+#   reviewers:            optional GitHub usernames to request review from
+
+consumers: []
+#  - repo: JMill/portfolio-sites
+#    file: scripts/generate-content.ts
+#    pattern: 'model:\s*"claude-sonnet-[\w\-]+"'
+#    replacement_template: 'model: "{recommended}"'
+#    family: anthropic.sonnet
+#    branch_prefix: chore/model-bump
+#    reviewers: [JMill]
