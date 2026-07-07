@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import type { ModelInfo, ProviderSnapshot } from "../types.ts";
+import { pickRecommended } from "../rank.ts";
 
 const EXCLUDE_RE =
   /(embedding|whisper|tts|dall-e|moderation|davinci|babbage|audio|image|realtime|transcribe|search)/i;
@@ -38,7 +39,10 @@ export async function fetchModels(apiKey: string): Promise<ProviderSnapshot> {
   const out: ProviderSnapshot = { families: {} };
   for (const [fam, items] of Object.entries(families)) {
     items.sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
-    out.families[fam] = { recommended: items[0].id, all: items };
+    out.families[fam] = {
+      recommended: pickRecommended(items, (m) => m.created_at ?? ""),
+      all: items,
+    };
   }
   return out;
 }

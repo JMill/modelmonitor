@@ -1,4 +1,5 @@
 import type { ModelInfo, ProviderSnapshot } from "../types.ts";
+import { pickRecommended } from "../rank.ts";
 
 interface GoogleModel {
   name: string;
@@ -37,7 +38,10 @@ export async function fetchModels(apiKey: string): Promise<ProviderSnapshot> {
   const out: ProviderSnapshot = { families: {} };
   for (const [fam, items] of Object.entries(families)) {
     items.sort((a, b) => b.id.localeCompare(a.id));
-    out.families[fam] = { recommended: items[0].id, all: items };
+    out.families[fam] = {
+      recommended: pickRecommended(items, (m) => m.id),
+      all: items,
+    };
   }
   return out;
 }
