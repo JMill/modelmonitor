@@ -65,4 +65,5 @@ export type AlertEntry =
       family: string;
       lost: string;
     }
-  | { kind: "schema_invalid"; error: string };
+  | { kind: "schema_invalid"; error: string }
+  | { kind: "no_providers_configured"; error: string };
