@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ModelInfo, ProviderSnapshot } from "../types.ts";
+import { pickRecommended } from "../rank.ts";
 
 const FAMILY_RE = /^claude-(opus|sonnet|haiku)-/;
 
@@ -33,7 +34,10 @@ export async function fetchModels(apiKey: string): Promise<ProviderSnapshot> {
   const out: ProviderSnapshot = { families: {} };
   for (const [fam, list] of Object.entries(families)) {
     list.sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
-    out.families[fam] = { recommended: list[0].id, all: list };
+    out.families[fam] = {
+      recommended: pickRecommended(list, (m) => m.created_at ?? ""),
+      all: list,
+    };
   }
   return out;
 }
