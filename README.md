@@ -16,7 +16,7 @@ the family you want.
 ```bash
 curl -s https://jmill.github.io/modelmonitor/models.json \
   | jq -r '.providers.anthropic.families.sonnet.recommended'
-# → claude-sonnet-4-6
+# → claude-sonnet-5
 ```
 
 ```ts
@@ -40,8 +40,8 @@ default if the fetch fails.
     "anthropic": {
       "families": {
         "sonnet": {
-          "recommended": "claude-sonnet-4-6",
-          "all": [{ "id": "claude-sonnet-4-6", "created_at": "...", "deprecated": false }]
+          "recommended": "claude-sonnet-5",
+          "all": [{ "id": "claude-sonnet-5", "created_at": "...", "deprecated": false }]
         }
       }
     },
