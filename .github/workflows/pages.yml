@@ -6,6 +6,12 @@ on:
     paths:
       - "docs/**"
       - ".github/workflows/pages.yml"
+  # The refresh workflow commits docs/models.json using GITHUB_TOKEN, and
+  # GitHub suppresses push-triggered workflows for those commits — so we
+  # must chain off the refresh run itself or the manifest never deploys.
+  workflow_run:
+    workflows: [refresh]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -19,6 +25,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

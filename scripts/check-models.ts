@@ -24,11 +24,18 @@ import {
 
 const MANIFEST_URL = "https://jmill.github.io/modelmonitor/models.json";
 
-function need(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`missing env: ${name}`);
-  return v;
-}
+// Each provider is optional: it runs only if its API key is configured.
+// A missing key means "not enabled" and is skipped quietly; at least one
+// provider must be configured or we alert (see below).
+const PROVIDERS: {
+  id: ProviderId;
+  envKey: string;
+  fetch: (apiKey: string) => Promise<ProviderSnapshot>;
+}[] = [
+  { id: "anthropic", envKey: "ANTHROPIC_API_KEY", fetch: fetchAnthropic },
+  { id: "openai", envKey: "OPENAI_API_KEY", fetch: fetchOpenAI },
+  { id: "google", envKey: "GOOGLE_API_KEY", fetch: fetchGoogle },
+];
 
 async function safeFetch(
   provider: ProviderId,
@@ -63,17 +70,34 @@ async function main() {
   const alerts: AlertEntry[] = [];
   const providers: Manifest["providers"] = {};
 
-  const [anthropic, openai, google] = await Promise.all([
-    safeFetch("anthropic", () => fetchAnthropic(need("ANTHROPIC_API_KEY"))),
-    safeFetch("openai", () => fetchOpenAI(need("OPENAI_API_KEY"))),
-    safeFetch("google", () => fetchGoogle(need("GOOGLE_API_KEY"))),
-  ]);
-  if (anthropic.snapshot) providers.anthropic = anthropic.snapshot;
-  else alerts.push({ kind: "provider_failed", provider: "anthropic", error: anthropic.error! });
-  if (openai.snapshot) providers.openai = openai.snapshot;
-  else alerts.push({ kind: "provider_failed", provider: "openai", error: openai.error! });
-  if (google.snapshot) providers.google = google.snapshot;
-  else alerts.push({ kind: "provider_failed", provider: "google", error: google.error! });
+  let configuredCount = 0;
+  await Promise.all(
+    PROVIDERS.map(async (p) => {
+      const apiKey = process.env[p.envKey];
+      if (!apiKey) {
+        console.log(`[${p.id}] ${p.envKey} not set; skipping (provider disabled)`);
+        return;
+      }
+      configuredCount++;
+      const result = await safeFetch(p.id, () => p.fetch(apiKey));
+      if (result.snapshot) providers[p.id] = result.snapshot;
+      else
+        alerts.push({
+          kind: "provider_failed",
+          provider: p.id,
+          error: result.error!,
+        });
+    }),
+  );
+
+  if (configuredCount === 0) {
+    alerts.push({
+      kind: "no_providers_configured",
+      error:
+        "no provider API keys configured; set at least one of " +
+        PROVIDERS.map((p) => p.envKey).join(", "),
+    });
+  }
 
   const next = buildManifest(providers);
   try {

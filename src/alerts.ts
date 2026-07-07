@@ -28,6 +28,8 @@ export function formatIssueBody(
         lines.push(
           `- \`${a.provider}.${a.family}\`: previously-recommended \`${a.lost}\` is gone with no successor`,
         );
+      } else if (a.kind === "no_providers_configured") {
+        lines.push(`- no providers configured: ${a.error}`);
       } else {
         lines.push(`- schema invalid: ${a.error}`);
       }
