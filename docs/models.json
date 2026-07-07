@@ -1,7 +1,7 @@
 {
   "$schema": "https://jmill.github.io/modelmonitor/schema.json",
   "version": "1",
-  "generated_at": "2026-07-07T12:57:11.182Z",
+  "generated_at": "2026-07-07T14:51:16.242Z",
   "providers": {
     "anthropic": {
       "families": {
@@ -239,7 +239,7 @@
           ]
         },
         "gpt-4.1": {
-          "recommended": "gpt-4.1-nano",
+          "recommended": "gpt-4.1",
           "all": [
             {
               "id": "gpt-4.1-nano",
