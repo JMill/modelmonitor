@@ -1,7 +1,7 @@
 {
   "$schema": "https://jmill.github.io/modelmonitor/schema.json",
   "version": "1",
-  "generated_at": "2026-07-21T09:54:04.839Z",
+  "generated_at": "2026-07-22T09:52:52.942Z",
   "providers": {
     "anthropic": {
       "families": {
@@ -78,6 +78,31 @@
     },
     "openai": {
       "families": {
+        "gpt-4": {
+          "recommended": "gpt-4-turbo-2024-04-09",
+          "all": [
+            {
+              "id": "gpt-4-turbo-2024-04-09",
+              "created_at": "2024-04-08T18:41:17.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4-turbo",
+              "created_at": "2024-04-05T23:57:21.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4",
+              "created_at": "2023-06-27T16:13:31.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4-0613",
+              "created_at": "2023-06-12T16:54:56.000Z",
+              "deprecated": false
+            }
+          ]
+        },
         "gpt-3.5": {
           "recommended": "gpt-3.5-turbo-0125",
           "all": [
@@ -109,166 +134,6 @@
             {
               "id": "gpt-3.5-turbo",
               "created_at": "2023-02-28T18:56:42.000Z",
-              "deprecated": false
-            }
-          ]
-        },
-        "gpt-4": {
-          "recommended": "gpt-4-turbo-2024-04-09",
-          "all": [
-            {
-              "id": "gpt-4-turbo-2024-04-09",
-              "created_at": "2024-04-08T18:41:17.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4-turbo",
-              "created_at": "2024-04-05T23:57:21.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4",
-              "created_at": "2023-06-27T16:13:31.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4-0613",
-              "created_at": "2023-06-12T16:54:56.000Z",
-              "deprecated": false
-            }
-          ]
-        },
-        "gpt-4o": {
-          "recommended": "gpt-4o-2024-11-20",
-          "all": [
-            {
-              "id": "gpt-4o-2024-11-20",
-              "created_at": "2025-02-12T03:39:03.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4o-2024-08-06",
-              "created_at": "2024-08-04T23:38:39.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4o-mini",
-              "created_at": "2024-07-16T23:32:21.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4o-mini-2024-07-18",
-              "created_at": "2024-07-16T23:31:57.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4o-2024-05-13",
-              "created_at": "2024-05-10T19:08:52.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4o",
-              "created_at": "2024-05-10T18:50:49.000Z",
-              "deprecated": false
-            }
-          ]
-        },
-        "o-series": {
-          "recommended": "o3-pro-2025-06-10",
-          "all": [
-            {
-              "id": "o3-pro-2025-06-10",
-              "created_at": "2025-06-05T23:39:21.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "o3-pro",
-              "created_at": "2025-05-28T23:35:49.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "o4-mini",
-              "created_at": "2025-04-09T19:02:31.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "o3",
-              "created_at": "2025-04-09T19:01:48.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "o4-mini-2025-04-16",
-              "created_at": "2025-04-08T17:31:46.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "o3-2025-04-16",
-              "created_at": "2025-04-08T17:28:21.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "o1-pro",
-              "created_at": "2025-03-17T22:49:51.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "o1-pro-2025-03-19",
-              "created_at": "2025-03-17T22:45:04.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "o3-mini-2025-01-31",
-              "created_at": "2025-01-27T20:36:40.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "o3-mini",
-              "created_at": "2025-01-17T20:39:43.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "o1",
-              "created_at": "2024-12-16T19:03:36.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "o1-2024-12-17",
-              "created_at": "2024-12-16T05:29:36.000Z",
-              "deprecated": false
-            }
-          ]
-        },
-        "gpt-4.1": {
-          "recommended": "gpt-4.1",
-          "all": [
-            {
-              "id": "gpt-4.1-nano",
-              "created_at": "2025-04-10T21:48:27.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4.1-nano-2025-04-14",
-              "created_at": "2025-04-10T21:37:05.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4.1-mini",
-              "created_at": "2025-04-10T20:49:33.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4.1-mini-2025-04-14",
-              "created_at": "2025-04-10T20:39:07.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4.1",
-              "created_at": "2025-04-10T20:22:22.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4.1-2025-04-14",
-              "created_at": "2025-04-10T20:09:06.000Z",
               "deprecated": false
             }
           ]
@@ -469,6 +334,141 @@
             {
               "id": "gpt-5-chat-latest",
               "created_at": "2025-08-01T18:35:06.000Z",
+              "deprecated": false
+            }
+          ]
+        },
+        "gpt-4o": {
+          "recommended": "gpt-4o-2024-11-20",
+          "all": [
+            {
+              "id": "gpt-4o-2024-11-20",
+              "created_at": "2025-02-12T03:39:03.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4o-2024-08-06",
+              "created_at": "2024-08-04T23:38:39.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4o-mini",
+              "created_at": "2024-07-16T23:32:21.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4o-mini-2024-07-18",
+              "created_at": "2024-07-16T23:31:57.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4o-2024-05-13",
+              "created_at": "2024-05-10T19:08:52.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4o",
+              "created_at": "2024-05-10T18:50:49.000Z",
+              "deprecated": false
+            }
+          ]
+        },
+        "o-series": {
+          "recommended": "o3-pro-2025-06-10",
+          "all": [
+            {
+              "id": "o3-pro-2025-06-10",
+              "created_at": "2025-06-05T23:39:21.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "o3-pro",
+              "created_at": "2025-05-28T23:35:49.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "o4-mini",
+              "created_at": "2025-04-09T19:02:31.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "o3",
+              "created_at": "2025-04-09T19:01:48.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "o4-mini-2025-04-16",
+              "created_at": "2025-04-08T17:31:46.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "o3-2025-04-16",
+              "created_at": "2025-04-08T17:28:21.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "o1-pro",
+              "created_at": "2025-03-17T22:49:51.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "o1-pro-2025-03-19",
+              "created_at": "2025-03-17T22:45:04.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "o3-mini-2025-01-31",
+              "created_at": "2025-01-27T20:36:40.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "o3-mini",
+              "created_at": "2025-01-17T20:39:43.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "o1",
+              "created_at": "2024-12-16T19:03:36.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "o1-2024-12-17",
+              "created_at": "2024-12-16T05:29:36.000Z",
+              "deprecated": false
+            }
+          ]
+        },
+        "gpt-4.1": {
+          "recommended": "gpt-4.1",
+          "all": [
+            {
+              "id": "gpt-4.1-nano",
+              "created_at": "2025-04-10T21:48:27.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4.1-nano-2025-04-14",
+              "created_at": "2025-04-10T21:37:05.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4.1-mini",
+              "created_at": "2025-04-10T20:49:33.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4.1-mini-2025-04-14",
+              "created_at": "2025-04-10T20:39:07.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4.1",
+              "created_at": "2025-04-10T20:22:22.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4.1-2025-04-14",
+              "created_at": "2025-04-10T20:09:06.000Z",
               "deprecated": false
             }
           ]
