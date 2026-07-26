@@ -51,9 +51,27 @@ default if the fetch fails.
 }
 ```
 
-Family keys are stable: `anthropic.{opus,sonnet,haiku}`,
-`openai.{gpt-5,gpt-4o,gpt-4.1,gpt-4,gpt-3.5,o-series,chatgpt}`,
-`google.gemini-<version>(-{flash,pro,nano,ultra})?`.
+Family keys are stable once published:
+
+| Provider    | Keys                                                                       |
+| ----------- | -------------------------------------------------------------------------- |
+| `anthropic` | Derived from the model ID — `opus`, `sonnet`, `haiku`, `fable`, `mythos`, … |
+| `openai`    | `gpt-5`, `gpt-4o`, `gpt-4.1`, `gpt-4`, `gpt-3.5`, `o-series`, `chatgpt`     |
+| `google`    | `gemini-<version>(-{flash,pro,nano,ultra})?`                                |
+
+Anthropic keys are read off the ID (`claude-<family>-<version>`), so a newly
+released family shows up on the next refresh without a code change. OpenAI
+keys are deliberately curated instead: `gpt-5` collects `gpt-5`, `gpt-5.1`,
+`gpt-5.5`… under one key so a pinned `openai.gpt-5` doesn't fragment on a
+point release.
+
+### When a model matches nothing
+
+Any model a provider returns that no family rule matches is listed under that
+provider's `unclassified` array and raises an alert on the run that first sees
+it. That array is a diagnostic — consumers should read `families` and ignore
+it — but it means a naming change can never quietly drop a model from the
+manifest the way it could before.
 
 ## Push mode
 
@@ -77,8 +95,8 @@ no duplicate is opened.
 
 ## Alerts
 
-When a previously-recommended model disappears with no successor, or any
-provider's API call fails, modelmonitor:
+When a previously-recommended model disappears with no successor, a model
+matches no family rule, or any provider's API call fails, modelmonitor:
 
 1. Opens a GitHub issue in this repo (label `modelmonitor`).
 2. POSTs to `ALERT_WEBHOOK_URL` (if configured) with this payload:
@@ -92,6 +110,15 @@ provider's API call fails, modelmonitor:
   "alerts": [...]
 }
 ```
+
+### Behaviour when a provider is down
+
+A provider whose API call fails keeps its **previous snapshot** in the
+published manifest, alongside a `provider_failed` alert. A transient outage
+therefore never republishes the manifest with that provider's models missing —
+consumers fetching `models.json` mid-incident get stale data rather than an
+empty `families` object. A provider with no API key configured is treated as
+intentionally disabled and is simply absent.
 
 ## Configuration
 

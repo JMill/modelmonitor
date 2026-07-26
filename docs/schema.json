@@ -21,6 +21,11 @@
         "families": {
           "type": "object",
           "additionalProperties": { "$ref": "#/definitions/family" }
+        },
+        "unclassified": {
+          "type": "array",
+          "description": "Diagnostic only. Model IDs the provider returned that matched no family rule, and which therefore appear in no family above. Present only when non-empty. Consumers should ignore this field.",
+          "items": { "type": "string" }
         }
       }
     },

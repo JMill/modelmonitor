@@ -28,6 +28,11 @@ export function formatIssueBody(
         lines.push(
           `- \`${a.provider}.${a.family}\`: previously-recommended \`${a.lost}\` is gone with no successor`,
         );
+      } else if (a.kind === "unclassified_models") {
+        lines.push(
+          `- \`${a.provider}\`: ${a.models.length} model(s) matched no family rule and are missing from the manifest — ` +
+            a.models.map((m) => `\`${m}\``).join(", "),
+        );
       } else if (a.kind === "no_providers_configured") {
         lines.push(`- no providers configured: ${a.error}`);
       } else {

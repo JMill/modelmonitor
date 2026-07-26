@@ -6,8 +6,10 @@
 #   file:                 path within the consumer repo
 #   pattern:              JS-flavor regex matched globally; substring(s) replaced
 #   replacement_template: '{recommended}' is interpolated with the manifest value
-#   family:               '<provider>.<family>' key from manifest
-#                         (anthropic.{opus,sonnet,haiku} / openai.{gpt-5,gpt-4o,o-series,...} / google.gemini-...)
+#   family:               '<provider>.<family>' key from manifest — check
+#                         models.json for the keys currently published
+#                         (anthropic.{opus,sonnet,haiku,fable,...} /
+#                          openai.{gpt-5,gpt-4o,o-series,...} / google.gemini-...)
 #   branch_prefix:        PR branch namespace (default: chore/model-bump)
 #   reviewers:            optional GitHub usernames to request review from
 
