@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sizeTier, pickRecommended } from "../src/rank.ts";
+import { sizeTier, pickRecommended, naturalCompare } from "../src/rank.ts";
 
 const m = (id: string, created_at?: string) => ({ id, created_at, deprecated: false });
 
@@ -42,5 +42,24 @@ describe("pickRecommended", () => {
   it("uses the id as the recency key for Google", () => {
     const items = [m("gemini-2.0-flash-lite"), m("gemini-2.0-flash-001")];
     expect(pickRecommended(items, (x) => x.id)).toBe("gemini-2.0-flash-001");
+  });
+
+  it("orders unpadded id revisions numerically, not lexicographically", () => {
+    const items = [m("gemini-3-pro-9"), m("gemini-3-pro-10")];
+    expect(pickRecommended(items, (x) => x.id, naturalCompare)).toBe(
+      "gemini-3-pro-10",
+    );
+  });
+});
+
+describe("naturalCompare", () => {
+  it("sorts embedded numbers by value", () => {
+    expect(naturalCompare("v9", "v10")).toBeLessThan(0);
+  });
+
+  it("leaves fixed-width ISO timestamps in chronological order", () => {
+    expect(
+      naturalCompare("2026-05-28T00:00:00Z", "2026-07-24T00:00:00Z"),
+    ).toBeLessThan(0);
   });
 });

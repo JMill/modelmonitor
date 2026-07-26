@@ -19,8 +19,19 @@ export type Family = z.infer<typeof Family>;
 
 export const ProviderSnapshot = z.object({
   families: z.record(z.string(), Family),
+  // Diagnostic: model IDs the provider returned that no family rule matched.
+  // Published so a naming change that outruns our rules is visible in the
+  // manifest instead of silently disappearing from it. Omitted when empty.
+  unclassified: z.array(z.string()).optional(),
 });
 export type ProviderSnapshot = z.infer<typeof ProviderSnapshot>;
+
+// What a provider module returns. `unclassified` stays out of the snapshot
+// unless it's non-empty, so the published manifest keeps its usual shape.
+export interface ProviderResult {
+  snapshot: ProviderSnapshot;
+  unclassified: string[];
+}
 
 export const Manifest = z.object({
   $schema: z.string().optional(),
@@ -64,6 +75,11 @@ export type AlertEntry =
       provider: ProviderId;
       family: string;
       lost: string;
+    }
+  | {
+      kind: "unclassified_models";
+      provider: ProviderId;
+      models: string[];
     }
   | { kind: "schema_invalid"; error: string }
   | { kind: "no_providers_configured"; error: string };
