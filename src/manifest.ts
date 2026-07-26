@@ -73,6 +73,27 @@ export function diffManifests(
   return out;
 }
 
+// Roll back the record of unclassified IDs whose alert never went out, so the
+// next run sees them as new and alerts again.
+//
+// The manifest is the only state we keep, and it doubles as the dedup ledger
+// for unclassified alerts. Persisting an ID we failed to announce would mark
+// it "already reported" forever — one dropped issue-create would permanently
+// silence the very signal that catches a naming change. Alerting is therefore
+// at-least-once: state advances only after delivery is confirmed.
+export function holdUnclassifiedForRetry(
+  manifest: Manifest,
+  pending: Map<ProviderId, string[]>,
+): void {
+  for (const [provider, ids] of pending) {
+    const snapshot = manifest.providers[provider];
+    if (!snapshot?.unclassified) continue;
+    const held = new Set(ids);
+    const kept = snapshot.unclassified.filter((id) => !held.has(id));
+    snapshot.unclassified = kept.length ? kept : undefined;
+  }
+}
+
 export function buildManifest(
   providers: Manifest["providers"],
 ): Manifest {

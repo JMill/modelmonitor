@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildManifest, diffManifests } from "../src/manifest.ts";
-import { Manifest } from "../src/types.ts";
+import {
+  buildManifest,
+  diffManifests,
+  holdUnclassifiedForRetry,
+} from "../src/manifest.ts";
+import { Manifest, type ProviderId } from "../src/types.ts";
 
 const snapshot = (recommended: string, ids: string[]) => ({
   recommended,
@@ -72,5 +76,42 @@ describe("diffManifests", () => {
         }),
       ]),
     );
+  });
+});
+
+describe("holdUnclassifiedForRetry", () => {
+  const withUnclassified = (ids: string[]) =>
+    buildManifest({
+      anthropic: { families: {}, unclassified: ids },
+    });
+
+  it("drops IDs whose alert was not delivered so they re-alert next run", () => {
+    const m = withUnclassified(["claude-2.1", "claude-quartz-6"]);
+    holdUnclassifiedForRetry(
+      m,
+      new Map<ProviderId, string[]>([["anthropic", ["claude-quartz-6"]]]),
+    );
+    // Previously-reported IDs stay recorded; only the undelivered one is
+    // rolled back, so the next run treats it as new.
+    expect(m.providers.anthropic!.unclassified).toEqual(["claude-2.1"]);
+  });
+
+  it("omits the field entirely when nothing was successfully reported", () => {
+    const m = withUnclassified(["claude-quartz-6"]);
+    holdUnclassifiedForRetry(
+      m,
+      new Map<ProviderId, string[]>([["anthropic", ["claude-quartz-6"]]]),
+    );
+    expect(m.providers.anthropic!.unclassified).toBeUndefined();
+    // And it must not survive a round-trip through the published file.
+    expect(JSON.parse(JSON.stringify(m))).not.toHaveProperty(
+      "providers.anthropic.unclassified",
+    );
+  });
+
+  it("leaves providers with no pending IDs untouched", () => {
+    const m = withUnclassified(["claude-2.1"]);
+    holdUnclassifiedForRetry(m, new Map<ProviderId, string[]>());
+    expect(m.providers.anthropic!.unclassified).toEqual(["claude-2.1"]);
   });
 });

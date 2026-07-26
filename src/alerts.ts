@@ -56,14 +56,17 @@ export function formatIssueBody(
   return lines.join("\n");
 }
 
+// Returns true only when the issue was actually filed. Callers use this to
+// decide whether it is safe to record that an alert has been announced — an
+// unconfigured token is "not delivered", not "nothing to do".
 export async function createIssue(
   title: string,
   body: string,
   ctx: AlertContext,
-): Promise<void> {
+): Promise<boolean> {
   if (!ctx.githubToken) {
     console.warn("createIssue: no GITHUB_TOKEN; skipping");
-    return;
+    return false;
   }
   const octokit = new Octokit({ auth: ctx.githubToken });
   await octokit.issues.create({
@@ -73,13 +76,16 @@ export async function createIssue(
     body,
     labels: ["modelmonitor"],
   });
+  return true;
 }
 
+// Returns true only when the webhook accepted the payload. An unconfigured
+// URL is false for the same reason as above.
 export async function postWebhook(
   payload: unknown,
   ctx: AlertContext,
-): Promise<void> {
-  if (!ctx.webhookUrl) return;
+): Promise<boolean> {
+  if (!ctx.webhookUrl) return false;
   const res = await fetch(ctx.webhookUrl, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -90,4 +96,5 @@ export async function postWebhook(
       `webhook POST failed: ${res.status} ${res.statusText}`,
     );
   }
+  return true;
 }

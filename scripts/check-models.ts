@@ -5,6 +5,7 @@ import { fetchModels as fetchGoogle } from "../src/providers/google.ts";
 import {
   buildManifest,
   diffManifests,
+  holdUnclassifiedForRetry,
   MANIFEST_PATH,
   readManifest,
   writeManifest,
@@ -76,6 +77,10 @@ async function main() {
   // check below must not read it as "every family in this provider vanished".
   const unavailable = new Set<ProviderId>();
 
+  // Unclassified IDs alerted on for the first time this run, kept so they can
+  // be rolled back out of the manifest if the alert fails to deliver.
+  const freshUnclassified = new Map<ProviderId, string[]>();
+
   let configuredCount = 0;
   await Promise.all(
     PROVIDERS.map(async (p) => {
@@ -115,6 +120,7 @@ async function main() {
             provider: p.id,
             models: fresh,
           });
+          freshUnclassified.set(p.id, fresh);
         }
       }
     }),
@@ -165,23 +171,26 @@ async function main() {
     }
   }
 
-  await writeManifest(MANIFEST_PATH, next);
-
-  console.log(`Wrote ${MANIFEST_PATH}`);
   console.log(`Changes: ${changes.length}, Alerts: ${alerts.length}`);
   for (const c of changes) console.log(" change:", c);
   for (const a of alerts) console.log(" alert:", a);
 
+  // Deliver before persisting: the manifest is also the dedup ledger for
+  // unclassified alerts, so writing it first would mark an ID as reported even
+  // when the report never left the building.
+  let delivered = false;
+
   if (alerts.length) {
     const title = `modelmonitor: ${alerts.length} alert(s) on ${new Date().toISOString().slice(0, 10)}`;
     const body = formatIssueBody(alerts, changes, ctx);
-    await createIssue(title, body, ctx).catch((err) =>
-      console.error("createIssue failed:", err),
-    );
+    delivered = await createIssue(title, body, ctx).catch((err) => {
+      console.error("createIssue failed:", err);
+      return false;
+    });
   }
 
   if (changes.length || alerts.length) {
-    await postWebhook(
+    const posted = await postWebhook(
       {
         event: alerts.length ? "alert" : "manifest_updated",
         manifest_url: MANIFEST_URL,
@@ -190,8 +199,25 @@ async function main() {
         alerts,
       },
       ctx,
-    ).catch((err) => console.error("postWebhook failed:", err));
+    ).catch((err) => {
+      console.error("postWebhook failed:", err);
+      return false;
+    });
+    delivered ||= posted;
   }
+
+  // Either channel landing is enough — one durable record of the alert exists.
+  if (freshUnclassified.size && !delivered) {
+    for (const [provider, ids] of freshUnclassified) {
+      console.warn(
+        `[${provider}] alert not delivered; holding ${ids.length} unclassified ID(s) back to re-alert next run`,
+      );
+    }
+    holdUnclassifiedForRetry(next, freshUnclassified);
+  }
+
+  await writeManifest(MANIFEST_PATH, next);
+  console.log(`Wrote ${MANIFEST_PATH}`);
 }
 
 main().catch((err) => {

@@ -73,6 +73,14 @@ it. That array is a diagnostic — consumers should read `families` and ignore
 it — but it means a naming change can never quietly drop a model from the
 manifest the way it could before.
 
+Alerting is **at-least-once**. That array doubles as the ledger of what has
+already been reported, so an ID is only recorded once its alert has actually
+been delivered (issue filed or webhook accepted). If delivery fails, the ID is
+held back and re-alerted on the next run rather than being marked as seen — a
+single dropped notification can't permanently silence the signal. The flip side
+is that a repeatedly-undelivered ID stays out of `unclassified` until an alert
+lands.
+
 ## Push mode
 
 Add your repo to [`registry.yml`](./registry.yml) and modelmonitor will open a
