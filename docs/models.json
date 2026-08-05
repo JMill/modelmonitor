@@ -1,8 +1,98 @@
 {
   "$schema": "https://jmill.github.io/modelmonitor/schema.json",
   "version": "1",
-  "generated_at": "2026-08-04T09:57:21.396Z",
+  "generated_at": "2026-08-05T09:56:55.214Z",
   "providers": {
+    "anthropic": {
+      "families": {
+        "opus": {
+          "recommended": "claude-opus-5",
+          "all": [
+            {
+              "id": "claude-opus-5",
+              "display_name": "Claude Opus 5",
+              "created_at": "2026-07-24T00:00:00Z",
+              "deprecated": false
+            },
+            {
+              "id": "claude-opus-4-8",
+              "display_name": "Claude Opus 4.8",
+              "created_at": "2026-05-28T00:00:00Z",
+              "deprecated": false
+            },
+            {
+              "id": "claude-opus-4-7",
+              "display_name": "Claude Opus 4.7",
+              "created_at": "2026-04-14T00:00:00Z",
+              "deprecated": false
+            },
+            {
+              "id": "claude-opus-4-6",
+              "display_name": "Claude Opus 4.6",
+              "created_at": "2026-02-04T00:00:00Z",
+              "deprecated": false
+            },
+            {
+              "id": "claude-opus-4-5-20251101",
+              "display_name": "Claude Opus 4.5",
+              "created_at": "2025-11-24T00:00:00Z",
+              "deprecated": false
+            },
+            {
+              "id": "claude-opus-4-1-20250805",
+              "display_name": "Claude Opus 4.1",
+              "created_at": "2025-08-05T00:00:00Z",
+              "deprecated": false
+            }
+          ]
+        },
+        "sonnet": {
+          "recommended": "claude-sonnet-5",
+          "all": [
+            {
+              "id": "claude-sonnet-5",
+              "display_name": "Claude Sonnet 5",
+              "created_at": "2026-06-29T00:00:00Z",
+              "deprecated": false
+            },
+            {
+              "id": "claude-sonnet-4-6",
+              "display_name": "Claude Sonnet 4.6",
+              "created_at": "2026-02-17T00:00:00Z",
+              "deprecated": false
+            },
+            {
+              "id": "claude-sonnet-4-5-20250929",
+              "display_name": "Claude Sonnet 4.5",
+              "created_at": "2025-09-29T00:00:00Z",
+              "deprecated": false
+            }
+          ]
+        },
+        "fable": {
+          "recommended": "claude-fable-5",
+          "all": [
+            {
+              "id": "claude-fable-5",
+              "display_name": "Claude Fable 5",
+              "created_at": "2026-06-07T00:00:00Z",
+              "deprecated": false
+            }
+          ]
+        },
+        "haiku": {
+          "recommended": "claude-haiku-4-5-20251001",
+          "all": [
+            {
+              "id": "claude-haiku-4-5-20251001",
+              "display_name": "Claude Haiku 4.5",
+              "created_at": "2025-10-15T00:00:00Z",
+              "deprecated": false
+            }
+          ]
+        }
+      }
+    },
     "openai": {
       "families": {
         "gpt-3.5": {
@@ -406,96 +496,6 @@
         "sora-2",
         "sora-2-pro"
       ]
-    },
-    "anthropic": {
-      "families": {
-        "opus": {
-          "recommended": "claude-opus-5",
-          "all": [
-            {
-              "id": "claude-opus-5",
-              "display_name": "Claude Opus 5",
-              "created_at": "2026-07-24T00:00:00Z",
-              "deprecated": false
-            },
-            {
-              "id": "claude-opus-4-8",
-              "display_name": "Claude Opus 4.8",
-              "created_at": "2026-05-28T00:00:00Z",
-              "deprecated": false
-            },
-            {
-              "id": "claude-opus-4-7",
-              "display_name": "Claude Opus 4.7",
-              "created_at": "2026-04-14T00:00:00Z",
-              "deprecated": false
-            },
-            {
-              "id": "claude-opus-4-6",
-              "display_name": "Claude Opus 4.6",
-              "created_at": "2026-02-04T00:00:00Z",
-              "deprecated": false
-            },
-            {
-              "id": "claude-opus-4-5-20251101",
-              "display_name": "Claude Opus 4.5",
-              "created_at": "2025-11-24T00:00:00Z",
-              "deprecated": false
-            },
-            {
-              "id": "claude-opus-4-1-20250805",
-              "display_name": "Claude Opus 4.1",
-              "created_at": "2025-08-05T00:00:00Z",
-              "deprecated": false
-            }
-          ]
-        },
-        "sonnet": {
-          "recommended": "claude-sonnet-5",
-          "all": [
-            {
-              "id": "claude-sonnet-5",
-              "display_name": "Claude Sonnet 5",
-              "created_at": "2026-06-29T00:00:00Z",
-              "deprecated": false
-            },
-            {
-              "id": "claude-sonnet-4-6",
-              "display_name": "Claude Sonnet 4.6",
-              "created_at": "2026-02-17T00:00:00Z",
-              "deprecated": false
-            },
-            {
-              "id": "claude-sonnet-4-5-20250929",
-              "display_name": "Claude Sonnet 4.5",
-              "created_at": "2025-09-29T00:00:00Z",
-              "deprecated": false
-            }
-          ]
-        },
-        "fable": {
-          "recommended": "claude-fable-5",
-          "all": [
-            {
-              "id": "claude-fable-5",
-              "display_name": "Claude Fable 5",
-              "created_at": "2026-06-07T00:00:00Z",
-              "deprecated": false
-            }
-          ]
-        },
-        "haiku": {
-          "recommended": "claude-haiku-4-5-20251001",
-          "all": [
-            {
-              "id": "claude-haiku-4-5-20251001",
-              "display_name": "Claude Haiku 4.5",
-              "created_at": "2025-10-15T00:00:00Z",
-              "deprecated": false
-            }
-          ]
-        }
-      }
     }
   }
 }
