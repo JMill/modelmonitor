@@ -1,7 +1,7 @@
 {
   "$schema": "https://jmill.github.io/modelmonitor/schema.json",
   "version": "1",
-  "generated_at": "2026-09-02T09:20:31.132Z",
+  "generated_at": "2026-09-03T09:20:21.345Z",
   "providers": {
     "anthropic": {
       "families": {
