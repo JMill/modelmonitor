@@ -15,7 +15,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
+    "@anthropic-ai/sdk": "^0.128.0",
     "@octokit/rest": "^21.0.0",
     "js-yaml": "^4.1.0",
     "openai": "^4.77.0",
