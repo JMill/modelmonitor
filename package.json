@@ -11,6 +11,7 @@
   "scripts": {
     "check": "tsx scripts/check-models.ts",
     "bump-prs": "tsx scripts/open-bump-prs.ts",
+    "registry:check": "tsx scripts/validate-registry.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
