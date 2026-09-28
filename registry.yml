@@ -1,23 +1,46 @@
 # Push-mode consumer registry. modelmonitor opens PRs against these repos
-# when the family's `recommended` model differs from what's pinned in `file`.
+# when a file pins an older model than the family's `recommended` one.
+# Full reference: README.md, "Push mode". Check edits with
+# `npm run registry:check` (CI runs it too).
 #
 # Fields:
 #   repo:                 owner/repo (must be writable by BUMP_PR_TOKEN)
 #   file:                 path within the consumer repo
-#   pattern:              JS-flavor regex matched globally; substring(s) replaced
-#   replacement_template: '{recommended}' is interpolated with the manifest value
-#   family:               '<provider>.<family>' key from manifest — check
-#                         models.json for the keys currently published
-#                         (anthropic.{opus,sonnet,haiku,fable,...} /
-#                          openai.{gpt-5,gpt-4o,o-series,...} / google.gemini-...)
+#   family:               '<provider>.<family>' key from models.json, split on
+#                         the first dot (anthropic.sonnet, openai.gpt-4.1,
+#                         google.gemini-2.0-flash)
+#   pattern:              JS regex, matched globally. Anchor it on the key or
+#                         constant that holds the ID, so it never touches
+#                         comments, docs, test mocks or other families.
+#   flags:                optional extra regex flags: any of i, m, s, u
+#   replacement_template: what each match becomes. Must contain {recommended}
+#                         or {recommended_alias} (the verified undated alias,
+#                         falling back to {recommended}); $1 / $<name> expand
+#                         the pattern's capture groups.
 #   branch_prefix:        PR branch namespace (default: chore/model-bump)
 #   reviewers:            optional GitHub usernames to request review from
+#   title_template:       optional PR title; {family} {recommended} {from} {to}
+#   commit_template:      optional commit message; same placeholders
+#
+# Entries sharing (repo, family, branch_prefix) are bumped together in ONE PR.
+# Where their title/commit templates disagree, the first entry's wins.
+#
+# YAML quoting: inside single quotes a backslash is literal (write \b, \s as
+# is) but a single quote must be doubled (''). A lone ' ends the string and
+# breaks the whole file, which stops every consumer's bump.
 
 consumers: []
 #  - repo: JMill/portfolio-sites
-#    file: scripts/generate-content.ts
-#    pattern: 'model:\s*"claude-sonnet-[\w\-]+"'
-#    replacement_template: 'model: "{recommended}"'
+#    file: scripts/_shared/models.ts
 #    family: anthropic.sonnet
-#    branch_prefix: chore/model-bump
+#    pattern: '(\bsonnet:\s*["''])claude-sonnet-[a-z0-9-]+(["''])'
+#    replacement_template: '$1{recommended}$2'
 #    reviewers: [JMill]
+#
+#  # Haiku is listed under a dated ID; write the undated alias instead so the
+#  # pin doesn't churn to claude-haiku-4-5-20251001.
+#  - repo: JMill/example
+#    file: src/models.ts
+#    family: anthropic.haiku
+#    pattern: '(\bhaiku:\s*["''])claude-haiku-[a-z0-9-]+(["''])'
+#    replacement_template: '$1{recommended_alias}$2'
