@@ -3,16 +3,37 @@ import { z } from "zod";
 export const ProviderId = z.enum(["anthropic", "openai", "google"]);
 export type ProviderId = z.infer<typeof ProviderId>;
 
+// Every field added after the first published manifest is optional, so a
+// v1 manifest written before it still parses. They must still be declared
+// here: zod strips unknown keys, and readManifest() parses the previous
+// manifest, so an undeclared field would silently vanish from `prev`.
+// docs/schema.json mirrors this shape; tests/schema.test.ts fails on drift.
 export const ModelInfo = z.object({
   id: z.string(),
   display_name: z.string().optional(),
   created_at: z.string().optional(),
+  // No provider's models endpoint reports deprecation today, so this is
+  // always false. Retired models simply stop being listed.
   deprecated: z.boolean().default(false),
+  // Context window and output ceiling as the provider reports them (Anthropic
+  // only). null means the API returned no value for this model.
+  max_input_tokens: z.number().int().nullable().optional(),
+  max_tokens: z.number().int().nullable().optional(),
+  // Raw Anthropic capability tree, passed through untouched so leaves the API
+  // adds later (a new effort level, a new context-management strategy) are
+  // published without a code change. Leaves are `{ supported: boolean }`.
+  capabilities: z.record(z.string(), z.unknown()).nullable().optional(),
+  // Undated aliases verified to resolve to this dated ID (Anthropic only),
+  // e.g. claude-haiku-4-5 for claude-haiku-4-5-20251001.
+  aliases: z.array(z.string()).optional(),
 });
 export type ModelInfo = z.infer<typeof ModelInfo>;
 
 export const Family = z.object({
   recommended: z.string(),
+  // Verified undated alias of `recommended`, when it has one. Prefer it when
+  // pinning: it is the ID the provider documents, and it doesn't churn.
+  recommended_alias: z.string().optional(),
   all: z.array(ModelInfo),
 });
 export type Family = z.infer<typeof Family>;

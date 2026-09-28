@@ -34,6 +34,10 @@
       "required": ["recommended", "all"],
       "properties": {
         "recommended": { "type": "string" },
+        "recommended_alias": {
+          "type": "string",
+          "description": "Undated alias verified (via the provider's model-retrieve endpoint) to resolve to `recommended`. Prefer it when pinning. Present only when `recommended` is a dated ID with such an alias."
+        },
         "all": {
           "type": "array",
           "items": { "$ref": "#/definitions/modelInfo" }
@@ -47,7 +51,27 @@
         "id": { "type": "string" },
         "display_name": { "type": "string" },
         "created_at": { "type": "string" },
-        "deprecated": { "type": "boolean" }
+        "deprecated": {
+          "type": "boolean",
+          "description": "Always false today: no provider's models endpoint reports deprecation. Retired models stop being listed instead."
+        },
+        "max_input_tokens": {
+          "type": ["integer", "null"],
+          "description": "Context window as reported by the provider (Anthropic only). null when the API returned no value."
+        },
+        "max_tokens": {
+          "type": ["integer", "null"],
+          "description": "Maximum output tokens per request as reported by the provider (Anthropic only). null when the API returned no value."
+        },
+        "capabilities": {
+          "type": ["object", "null"],
+          "description": "Raw Anthropic Models API capability tree, passed through unmodified; leaves are {\"supported\": boolean}. Anthropic only."
+        },
+        "aliases": {
+          "type": "array",
+          "description": "Undated aliases verified to resolve to this dated ID (Anthropic only).",
+          "items": { "type": "string" }
+        }
       }
     }
   }
