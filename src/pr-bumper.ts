@@ -1,5 +1,10 @@
 import { Octokit } from "@octokit/rest";
-import type { Manifest, ProviderId, RegistryEntry } from "./types.ts";
+import {
+  splitFamily,
+  type Manifest,
+  type ProviderId,
+  type RegistryEntry,
+} from "./types.ts";
 
 export interface BumpResult {
   repo: string;
@@ -17,7 +22,7 @@ function resolveRecommended(
   manifest: Manifest,
   family: string,
 ): string | undefined {
-  const [providerKey, famKey] = family.split(".");
+  const { provider: providerKey, family: famKey } = splitFamily(family);
   const provider = manifest.providers[providerKey as ProviderId];
   return provider?.families[famKey]?.recommended;
 }

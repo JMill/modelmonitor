@@ -62,20 +62,117 @@ export const Manifest = z.object({
 });
 export type Manifest = z.infer<typeof Manifest>;
 
-export const RegistryEntry = z.object({
-  repo: z.string().regex(/^[^/]+\/[^/]+$/, "must be owner/repo"),
-  file: z.string(),
-  pattern: z.string(),
-  replacement_template: z.string(),
-  family: z.string().regex(/^[a-z]+\.[a-z0-9-]+$/, "must be provider.family"),
-  branch_prefix: z.string().default("chore/model-bump"),
-  reviewers: z.array(z.string()).default([]),
-});
+// A replacement_template must name the ID it writes. A template with neither
+// placeholder would stamp the same literal into the file on every bump.
+export const TEMPLATE_PLACEHOLDERS = [
+  "{recommended}",
+  "{recommended_alias}",
+] as const;
+
+// Split a registry family key on its FIRST dot only. OpenAI and Google family
+// keys carry dots of their own: splitting "openai.gpt-4.1" on every dot gives
+// "gpt-4", which is a different published family, so a gpt-4.1 pin would be
+// silently rewritten to gpt-4's recommended ID.
+export function splitFamily(key: string): { provider: string; family: string } {
+  const i = key.indexOf(".");
+  return i < 0
+    ? { provider: key, family: "" }
+    : { provider: key.slice(0, i), family: key.slice(i + 1) };
+}
+
+// Every registry pattern is matched globally; `flags` adds i/m/s/u on top.
+export function compilePattern(pattern: string, flags = ""): RegExp {
+  return new RegExp(pattern, `g${flags}`);
+}
+
+export const RegistryEntry = z
+  .object({
+    repo: z.string().regex(/^[^/\s]+\/[^/\s]+$/, "must be owner/repo"),
+    file: z.string().min(1),
+    // JS regex. Anchor it on the key or constant that holds the ID (see the
+    // README) so it can't touch comments, docs or other families' lines.
+    pattern: z.string().min(1),
+    flags: z
+      .string()
+      .regex(/^[imsu]*$/, "only i, m, s and u are allowed (g is always on)")
+      .default(""),
+    replacement_template: z
+      .string()
+      .refine((t) => TEMPLATE_PLACEHOLDERS.some((p) => t.includes(p)), {
+        message: `must contain ${TEMPLATE_PLACEHOLDERS.join(" or ")}`,
+      }),
+    family: z
+      .string()
+      .regex(/^[a-z]+\.[a-z0-9][a-z0-9.-]*$/, "must be provider.family"),
+    branch_prefix: z
+      .string()
+      .regex(
+        /^[A-Za-z0-9_-][A-Za-z0-9._-]*(\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/,
+        "must be a slash-separated git ref path",
+      )
+      .refine((p) => !p.includes(".."), "must not contain '..'")
+      .default("chore/model-bump"),
+    reviewers: z.array(z.string()).default([]),
+    // PR title / commit subject overrides; {family}, {recommended}, {from}
+    // and {to} are substituted. Entries that share a PR (same repo, family
+    // and branch_prefix) should agree; where they don't, the first wins.
+    title_template: z.string().min(1).optional(),
+    commit_template: z.string().min(1).optional(),
+  })
+  .superRefine((entry, ctx) => {
+    // Compile at parse time: a bad pattern fails validation (and CI) instead
+    // of throwing inside one entry on the day it first runs.
+    let re: RegExp;
+    try {
+      re = compilePattern(entry.pattern, entry.flags);
+    } catch (err) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["pattern"],
+        message: `invalid regex: ${err instanceof Error ? err.message : String(err)}`,
+      });
+      return;
+    }
+    if (re.test("")) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["pattern"],
+        message: "pattern matches the empty string",
+      });
+    }
+    const { provider } = splitFamily(entry.family);
+    if (!ProviderId.safeParse(provider).success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["family"],
+        message: `unknown provider "${provider}" (expected one of ${ProviderId.options.join(", ")})`,
+      });
+    }
+  });
 export type RegistryEntry = z.infer<typeof RegistryEntry>;
 
-export const Registry = z.object({
-  consumers: z.array(RegistryEntry),
-});
+export const Registry = z
+  .object({
+    consumers: z.array(RegistryEntry),
+  })
+  .superRefine((registry, ctx) => {
+    // One entry per (repo, file, family). A duplicate would race its twin
+    // for the same lines. GitHub repo names are case-insensitive.
+    const seen = new Map<string, number>();
+    registry.consumers.forEach((e, i) => {
+      const key = `${e.repo.toLowerCase()}\u0000${e.file}\u0000${e.family}`;
+      const first = seen.get(key);
+      if (first === undefined) {
+        seen.set(key, i);
+        return;
+      }
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["consumers", i],
+        message: `duplicate (repo, file, family) ${e.repo} ${e.file} ${e.family}; first declared at consumers[${first}]`,
+      });
+    });
+  });
 export type Registry = z.infer<typeof Registry>;
 
 export type DiffEntry =
