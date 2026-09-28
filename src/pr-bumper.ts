@@ -576,6 +576,20 @@ export async function bumpGroup(
   if (open) {
     result.status = "skipped_existing_pr";
     result.url = open.html_url;
+    // Re-run the sweep so an older PR that a failed sweep left open still
+    // gets closed in favour of this one.
+    result.superseded = await closeSuperseded(
+      octokit,
+      owner,
+      repo,
+      group,
+      branch,
+      { number: open.number, url: open.html_url },
+      target,
+    ).catch((err) => {
+      console.warn(`[${group.repo}] superseded-PR sweep failed: ${messageOf(err)}`);
+      return [];
+    });
     return result;
   }
   const declined = prs.find((p) => p.state === "closed" && !p.merged_at);

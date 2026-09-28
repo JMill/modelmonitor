@@ -342,11 +342,16 @@ describe("bumpAll against a GitHub fake", () => {
     expect(gh.calls).not.toContain("git.updateRef");
   });
 
-  it("leaves an existing open PR alone", async () => {
+  it("leaves an existing open PR alone, still closing older ones it supersedes", async () => {
+    const stale = gh.addPull(REPO, { ref: "chore/model-bump/anthropic.sonnet/claude-sonnet-4-6" });
     const open = gh.addPull(REPO, { ref: branch });
     const [result] = await bumpAll(gh.asOctokit(), sonnetEntries, manifest, undefined);
     expect(result).toMatchObject({ status: "skipped_existing_pr", url: open.html_url });
     expect(gh.calls).not.toContain("pulls.create");
+    expect(gh.calls).not.toContain("git.createCommit");
+    expect(open.state).toBe("open");
+    expect(stale.state).toBe("closed");
+    expect(result.superseded).toEqual([stale.html_url]);
   });
 
   it("resets a branch left behind without a PR instead of failing on it", async () => {
@@ -468,11 +473,16 @@ describe("bump alerts", () => {
     const again = formatBumpAlertBody(problems, "https://ci/run/3");
     expect(await upsertIssue(octokit, "JMill", "modelmonitor", BUMP_ALERT_TITLE, again)).toBe("unchanged");
 
+    // A human reply in between doesn't make the same report look new.
+    issues[0].comments.push("Looking into the mythos entry.");
+    expect(await upsertIssue(octokit, "JMill", "modelmonitor", BUMP_ALERT_TITLE, again)).toBe("unchanged");
+
     // A new problem: comment on the open issue rather than opening another.
     const more = formatBumpAlertBody([...problems, "- `JMill/x` `anthropic.opus`: bump failed: 403"], undefined);
     expect(await upsertIssue(octokit, "JMill", "modelmonitor", BUMP_ALERT_TITLE, more)).toBe("commented");
     expect(gh.issues("JMill/modelmonitor")).toHaveLength(1);
-    expect(issues[0].comments).toHaveLength(1);
+    expect(issues[0].comments).toHaveLength(2);
+    expect(issues[0].comments[1]).toContain("bump failed: 403");
   });
 
   it("reports nothing when every group is healthy", async () => {

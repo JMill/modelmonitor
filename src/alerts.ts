@@ -186,8 +186,11 @@ export async function upsertIssue(
       issue_number: existing.number,
       per_page: 100,
     });
-    const latest = comments.length ? comments[comments.length - 1].body : existing.body;
-    if (latest?.match(FINGERPRINT_RE)?.[1] === fingerprint) return "unchanged";
+    // The most recent report is the newest comment (or the issue body) that
+    // carries a fingerprint; human replies in between don't count.
+    const reports = [existing.body, ...comments.map((c) => c.body)];
+    const lastReport = reports.reverse().find((b) => b && FINGERPRINT_RE.test(b));
+    if (lastReport?.match(FINGERPRINT_RE)?.[1] === fingerprint) return "unchanged";
   }
   await octokit.issues.createComment({
     owner,
