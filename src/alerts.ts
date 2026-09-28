@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { Octokit } from "@octokit/rest";
+import type { GroupResult } from "./pr-bumper.ts";
 import type { AlertEntry, DiffEntry } from "./types.ts";
 
 export interface AlertContext {
@@ -97,4 +99,101 @@ export async function postWebhook(
     );
   }
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// Push-mode alerts
+
+export const BUMP_ALERT_TITLE = "modelmonitor: bump PRs need attention";
+
+// One markdown line per problem worth a human's attention: a group that
+// failed, a file whose pattern matched nothing (the consumer refactored and
+// its pin is no longer tracked), a file that could not be read, and a
+// declined bump whose pinned model the provider no longer lists. Routine
+// outcomes (opened, current, existing PR, declined) are not problems.
+export function bumpProblems(results: GroupResult[]): string[] {
+  const lines: string[] = [];
+  for (const r of results) {
+    const where = `\`${r.repo}\` \`${r.family}\``;
+    if (r.status === "failed" && r.error) {
+      lines.push(`- ${where}: bump failed: ${r.error}`);
+    }
+    for (const f of r.file_results) {
+      if (f.status === "no_match") {
+        lines.push(
+          `- ${where} \`${f.file}\`: pattern matched nothing, so this pin is no longer tracked. Fix the registry entry or the file.`,
+        );
+      } else if (f.status === "error" && !(r.status === "failed" && r.error)) {
+        lines.push(`- ${where} \`${f.file}\`: ${f.error}`);
+      }
+    }
+    if (r.status === "skipped_declined" && r.unserved.length) {
+      lines.push(
+        `- ${where}: the bump PR was declined (${r.url}), but ${r.unserved.map((id) => `\`${id}\``).join(", ")} is no longer listed by the provider.`,
+      );
+    }
+  }
+  return [...new Set(lines)];
+}
+
+const fingerprintOf = (lines: string[]) =>
+  createHash("sha256").update([...lines].sort().join("\n")).digest("hex").slice(0, 16);
+const FINGERPRINT_RE = /<!-- modelmonitor-fingerprint: ([0-9a-f]+) -->/;
+
+export function formatBumpAlertBody(lines: string[], runUrl?: string): string {
+  return [
+    "Automated alert from modelmonitor push mode. These registry entries need attention:",
+    "",
+    ...lines,
+    "",
+    runUrl ? `Run: ${runUrl}` : "",
+    `<!-- modelmonitor-fingerprint: ${fingerprintOf(lines)} -->`,
+  ]
+    .filter((l, i, all) => l !== "" || all[i - 1] !== "")
+    .join("\n");
+}
+
+export type UpsertOutcome = "created" | "commented" | "unchanged";
+
+// File `body` under `title`, at most one open issue per title: when one is
+// already open, comment on it instead of opening a duplicate, and stay quiet
+// when the latest report there has the same problem fingerprint (a
+// persistent problem is reported once, not every morning).
+export async function upsertIssue(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  title: string,
+  body: string,
+): Promise<UpsertOutcome> {
+  const issues = await octokit.paginate(octokit.issues.listForRepo, {
+    owner,
+    repo,
+    state: "open",
+    labels: "modelmonitor",
+    per_page: 100,
+  });
+  const existing = issues.find((i) => !i.pull_request && i.title === title);
+  if (!existing) {
+    await octokit.issues.create({ owner, repo, title, body, labels: ["modelmonitor"] });
+    return "created";
+  }
+  const fingerprint = body.match(FINGERPRINT_RE)?.[1];
+  if (fingerprint) {
+    const comments = await octokit.paginate(octokit.issues.listComments, {
+      owner,
+      repo,
+      issue_number: existing.number,
+      per_page: 100,
+    });
+    const latest = comments.length ? comments[comments.length - 1].body : existing.body;
+    if (latest?.match(FINGERPRINT_RE)?.[1] === fingerprint) return "unchanged";
+  }
+  await octokit.issues.createComment({
+    owner,
+    repo,
+    issue_number: existing.number,
+    body,
+  });
+  return "commented";
 }
