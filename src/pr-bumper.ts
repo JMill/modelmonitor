@@ -524,26 +524,33 @@ function isOlderBumpBranch(ref: string, group: BumpGroup, branch: string): boole
 // the recommendation. `current` is the PR for today's branch: the one just
 // opened or already open ("replaced"), or the one the repo closed unmerged
 // ("declined"). Each closed PR gets SUPERSEDED_MARKER in its body.
+type NoPrReason = "on_default" | "awaiting_alias";
+
 async function closeSuperseded(
   octokit: Octokit,
   where: RepoRef,
   open: ListedPr[],
   group: BumpGroup,
   branch: string,
-  // null: the default branch already pins the recommendation, so there is
-  // no newer PR to point at, but older bump PRs are still obsolete.
-  current: { number: number; url: string; declined?: boolean } | null,
+  // With no PR for today's branch, older bump PRs are still obsolete:
+  // "on_default" when the default branch already pins the recommendation,
+  // "awaiting_alias" when today's bump waits for a verified alias.
+  current: { number: number; url: string; declined?: boolean } | NoPrReason,
   target: BumpTarget,
 ): Promise<string[]> {
   const { owner, repo } = where;
   const closed: string[] = [];
   for (const pr of open) {
     if (!headIsIn(pr, where) || !isOlderBumpBranch(pr.head.ref, group, branch)) continue;
-    const why = !current
-      ? `\`${target.key}\` now recommends \`${target.recommended}\`, and the default branch already uses it. Closing this bump because merging it would move the repo to a model that is no longer the recommendation.`
-      : current.declined
-        ? `\`${target.key}\` now recommends \`${target.recommended}\`, which this repo declined in #${current.number} (${current.url}). Closing this bump because its model is no longer the recommendation.`
-        : `Superseded by #${current.number} (${current.url}): \`${target.key}\` now recommends \`${target.recommended}\`. Closing this one in its favour.`;
+    const now = `\`${target.key}\` now recommends \`${target.recommended}\``;
+    const why =
+      current === "on_default"
+        ? `${now}, and the default branch already uses it. Closing this bump because merging it would move the repo to a model that is no longer the recommendation.`
+        : current === "awaiting_alias"
+          ? `${now}. Its bump waits until an undated alias for it is verified, because this repo pins aliases. Closing this bump because its model is no longer the recommendation; a new PR opens once the alias is verified.`
+          : current.declined
+            ? `${now}, which this repo declined in #${current.number} (${current.url}). Closing this bump because its model is no longer the recommendation.`
+            : `Superseded by #${current.number} (${current.url}): ${now}. Closing this one in its favour.`;
     try {
       await octokit.issues.createComment({ owner, repo, issue_number: pr.number, body: why });
       await octokit.pulls.update({
@@ -639,6 +646,23 @@ export async function bumpGroup(
     }
   }
 
+  // Runs that open no PR still close older bump PRs for this family: their
+  // model is no longer the recommendation. A failed sweep only warns.
+  const sweepWithoutPr = async (reason: NoPrReason): Promise<string[]> => {
+    try {
+      const openPrs: ListedPr[] = await octokit.paginate(octokit.pulls.list, {
+        owner,
+        repo,
+        state: "open",
+        per_page: 100,
+      });
+      return await closeSuperseded(octokit, where, openPrs, group, branch, reason, target);
+    } catch (err) {
+      console.warn(`[${group.repo}] superseded-PR sweep failed: ${messageOf(err)}`);
+      return [];
+    }
+  };
+
   const changed = result.file_results.filter((f) => f.status === "changed");
   const needsAlias = group.entries.filter(
     (e) => aliasUnavailable(e, target) && changed.some((f) => f.file === e.file),
@@ -647,6 +671,7 @@ export async function bumpGroup(
     // The whole group waits: its files must move together.
     result.status = "skipped_no_alias";
     result.error = `${target.recommended} has no verified undated alias in the manifest today, and ${needsAlias.map((e) => e.file).join(", ")} write${needsAlias.length === 1 ? "s" : ""} {recommended_alias}; skipped rather than pinning the dated ID`;
+    result.superseded = await sweepWithoutPr("awaiting_alias");
     return result;
   }
   const incomplete = result.file_results.filter(
@@ -677,24 +702,7 @@ export async function bumpGroup(
       // The default branch is already on the recommendation (a manual
       // upgrade, or an earlier bump merged): older bump PRs for this family
       // would now move it backwards, so sweep them too.
-      const openPrs: ListedPr[] = await octokit.paginate(octokit.pulls.list, {
-        owner,
-        repo,
-        state: "open",
-        per_page: 100,
-      });
-      result.superseded = await closeSuperseded(
-        octokit,
-        where,
-        openPrs,
-        group,
-        branch,
-        null,
-        target,
-      ).catch((err) => {
-        console.warn(`[${group.repo}] superseded-PR sweep failed: ${messageOf(err)}`);
-        return [] as string[];
-      });
+      result.superseded = await sweepWithoutPr("on_default");
     }
     return result;
   }

@@ -439,6 +439,48 @@ describe("bumpAll against a GitHub fake", () => {
     expect(gh.readFile("JMill/py", later.branch!, "src/models.ts")).toContain("'claude-haiku-5'");
   });
 
+  it("closes older bump PRs while an alias bump waits for its alias", async () => {
+    const noAlias = Manifest.parse({
+      ...manifest,
+      providers: {
+        anthropic: {
+          families: {
+            haiku: {
+              recommended: "claude-haiku-5-20270101",
+              all: [model("claude-haiku-5-20270101"), model("claude-haiku-4-5-20251001")],
+            },
+          },
+        },
+      },
+    });
+    gh.addRepo("JMill/py", {
+      "src/models.ts": "export const M = {\n  haiku: 'claude-haiku-3-5',\n};\n",
+    });
+    const stale = gh.addPull("JMill/py", {
+      ref: "chore/model-bump/anthropic.haiku/claude-haiku-4-5-20251001",
+    });
+    const [result] = await bumpAll(
+      gh.asOctokit(),
+      [
+        entry({
+          repo: "JMill/py",
+          file: "src/models.ts",
+          family: "anthropic.haiku",
+          pattern: keyAnchored("haiku").pattern,
+          replacement_template: "$1{recommended_alias}$2",
+        }),
+      ],
+      noAlias,
+      undefined,
+    );
+    expect(result.status).toBe("skipped_no_alias");
+    expect(result.superseded).toEqual([stale.html_url]);
+    expect(stale.state).toBe("closed");
+    expect(stale.comments?.[0]).toContain("waits until an undated alias for it is verified");
+    expect(stale.body).toContain("<!-- modelmonitor:superseded -->");
+    expect(gh.calls).not.toContain("git.createCommit");
+  });
+
   it("treats an undated pin as another model once the manifest says it is not an alias", async () => {
     // The refresh checked claude-sonnet-4-5 and found it routes to another
     // snapshot, so it is not the recommended model and must be bumped.

@@ -271,6 +271,11 @@ a 400.
   a PR it closes this way (`<!-- modelmonitor:superseded -->` at the end of
   its body), so if the recommendation later returns to that ID, a fresh PR
   opens instead of the close being read as an opt-out.
+- **Newer recommendation, but no new PR this run**: older bump PRs are
+  still closed, with the same marker, when the default branch already uses
+  the recommendation (a manual upgrade landed first, so merging one would
+  move the repo backwards), or when the new bump waits for a verified alias.
+  In the second case the new PR opens once the alias is published.
 - **A failure mid-run** undoes only what that run did: a branch it created
   is deleted, a branch it reset goes back to its previous commit. A branch
   that existed before the run is never deleted.
