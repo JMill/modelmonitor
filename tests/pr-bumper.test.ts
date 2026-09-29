@@ -319,6 +319,25 @@ describe("bumpAll against a GitHub fake", () => {
     expect(gh.calls).not.toContain("git.createCommit");
   });
 
+  it("closes older bump PRs even when the default branch is already current", async () => {
+    // A manual upgrade landed first: merging the old bump would move backwards.
+    const stale = gh.addPull(REPO, { ref: "chore/model-bump/anthropic.haiku/claude-haiku-3-5-20241022" });
+    const otherFamily = gh.addPull(REPO, { ref: "chore/model-bump/anthropic.opus/claude-opus-5" });
+    const [result] = await bumpAll(
+      gh.asOctokit(),
+      [entry({ file: "packages/models/src/models.ts", family: "anthropic.haiku", ...keyAnchored("haiku") })],
+      manifest,
+      undefined,
+    );
+    expect(result.status).toBe("skipped_already_current");
+    expect(result.superseded).toEqual([stale.html_url]);
+    expect(stale.state).toBe("closed");
+    expect(stale.comments?.[0]).toContain("the default branch already uses it");
+    expect(stale.body).toContain("<!-- modelmonitor:superseded -->");
+    expect(otherFamily.state).toBe("open");
+    expect(gh.calls).not.toContain("git.createCommit");
+  });
+
   it("writes the undated alias for {recommended_alias}", async () => {
     const newer = Manifest.parse({
       ...manifest,

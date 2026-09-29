@@ -530,16 +530,20 @@ async function closeSuperseded(
   open: ListedPr[],
   group: BumpGroup,
   branch: string,
-  current: { number: number; url: string; declined?: boolean },
+  // null: the default branch already pins the recommendation, so there is
+  // no newer PR to point at, but older bump PRs are still obsolete.
+  current: { number: number; url: string; declined?: boolean } | null,
   target: BumpTarget,
 ): Promise<string[]> {
   const { owner, repo } = where;
   const closed: string[] = [];
   for (const pr of open) {
     if (!headIsIn(pr, where) || !isOlderBumpBranch(pr.head.ref, group, branch)) continue;
-    const why = current.declined
-      ? `\`${target.key}\` now recommends \`${target.recommended}\`, which this repo declined in #${current.number} (${current.url}). Closing this bump because its model is no longer the recommendation.`
-      : `Superseded by #${current.number} (${current.url}): \`${target.key}\` now recommends \`${target.recommended}\`. Closing this one in its favour.`;
+    const why = !current
+      ? `\`${target.key}\` now recommends \`${target.recommended}\`, and the default branch already uses it. Closing this bump because merging it would move the repo to a model that is no longer the recommendation.`
+      : current.declined
+        ? `\`${target.key}\` now recommends \`${target.recommended}\`, which this repo declined in #${current.number} (${current.url}). Closing this bump because its model is no longer the recommendation.`
+        : `Superseded by #${current.number} (${current.url}): \`${target.key}\` now recommends \`${target.recommended}\`. Closing this one in its favour.`;
     try {
       await octokit.issues.createComment({ owner, repo, issue_number: pr.number, body: why });
       await octokit.pulls.update({
@@ -670,6 +674,27 @@ export async function bumpGroup(
         .join("; ");
     } else {
       result.status = "skipped_already_current";
+      // The default branch is already on the recommendation (a manual
+      // upgrade, or an earlier bump merged): older bump PRs for this family
+      // would now move it backwards, so sweep them too.
+      const openPrs: ListedPr[] = await octokit.paginate(octokit.pulls.list, {
+        owner,
+        repo,
+        state: "open",
+        per_page: 100,
+      });
+      result.superseded = await closeSuperseded(
+        octokit,
+        where,
+        openPrs,
+        group,
+        branch,
+        null,
+        target,
+      ).catch((err) => {
+        console.warn(`[${group.repo}] superseded-PR sweep failed: ${messageOf(err)}`);
+        return [] as string[];
+      });
     }
     return result;
   }
