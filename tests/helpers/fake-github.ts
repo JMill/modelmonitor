@@ -5,10 +5,17 @@ import type { Octokit } from "@octokit/rest";
 // pulls and issues. Enough state to assert what a bump run leaves behind.
 //
 // It is as strict as GitHub where a mistake would only show up on the first
-// real run: a renamed repo resolves only for reads (writes must use the
-// canonical name repos.get returns), the `owner:branch` head filter matches
-// the owner exactly, a second PR on the same head is a 422, and the PR's
-// author can't be requested as a reviewer.
+// real run:
+//   - ref names: getRef / updateRef / deleteRef take `heads/<branch>` (no
+//     leading `refs/`), createRef takes `refs/heads/<branch>`, and anything
+//     else fails the way GitHub fails it (404 / 422);
+//   - updateRef / deleteRef on a missing ref are a 422;
+//   - a renamed repo resolves only for reads (writes must use the canonical
+//     name repos.get returns), and the `owner:branch` head filter matches
+//     the current owner exactly;
+//   - a second open PR on the same head is a 422, and the PR's author can't
+//     be requested as a reviewer;
+//   - issues.listForRepo returns pull requests too, marked `pull_request`.
 
 type Mode = "100644" | "100755" | "040000";
 interface Entry {
@@ -32,6 +39,7 @@ export interface FakePr {
   base: string;
   head: { ref: string; repo: { full_name: string } | null };
   user: { login: string };
+  labels: string[];
   reviewers: string[];
   comments?: string[];
 }
@@ -57,6 +65,11 @@ interface Repo {
 
 const httpError = (status: number, message: string) =>
   Object.assign(new Error(message), { status });
+
+// The branch named by `ref` in the exact form an endpoint takes (`heads/x`
+// for get/update/delete, `refs/heads/x` for create), or undefined.
+const branchOf = (ref: string, form: "heads/" | "refs/heads/") =>
+  ref.startsWith(form) && ref.length > form.length ? ref.slice(form.length) : undefined;
 
 // A 422 shaped like Octokit's RequestError: the validation errors are folded
 // into the message and kept on response.data.
@@ -218,6 +231,8 @@ export class FakeGitHub {
       createBranch?: boolean;
       headRepo?: string;
       body?: string;
+      title?: string;
+      labels?: string[];
     },
   ): FakePr {
     const r = this.repos.get(fullName.toLowerCase())!;
@@ -231,11 +246,12 @@ export class FakeGitHub {
       state: pr.state ?? "open",
       merged_at: pr.merged ? "2026-09-01T00:00:00Z" : null,
       html_url: `https://github.com/${r.fullName}/pull/${number}`,
-      title: `seeded ${pr.ref}`,
+      title: pr.title ?? `seeded ${pr.ref}`,
       body: pr.body ?? "",
       base: r.defaultBranch,
       head: { ref: pr.ref, repo: { full_name: pr.headRepo ?? r.fullName } },
       user: { login: "someone" },
+      labels: pr.labels ?? [],
       reviewers: [],
     };
     r.pulls.push(created);
@@ -270,7 +286,8 @@ export class FakeGitHub {
 
     git: {
       getRef: async ({ owner, repo, ref }: { owner: string; repo: string; ref: string }) => {
-        const sha = this.repo(owner, repo, true).refs.get(ref.replace(/^heads\//, ""));
+        const r = this.repo(owner, repo, true);
+        const sha = r.refs.get(branchOf(ref, "heads/") ?? "\0");
         if (!sha) throw httpError(404, "Not Found");
         return { data: { object: { sha } } };
       },
@@ -328,22 +345,28 @@ export class FakeGitHub {
       createRef: async (p: { owner: string; repo: string; ref: string; sha: string }) => {
         this.calls.push("git.createRef");
         const r = this.repo(p.owner, p.repo);
-        const name = p.ref.replace(/^refs\/heads\//, "");
+        const name = branchOf(p.ref, "refs/heads/");
+        if (!name) throw httpError(422, `Reference name must start with 'refs/heads/': ${p.ref}`);
         if (r.refs.has(name)) throw httpError(422, "Reference already exists");
+        if (!r.commits.has(p.sha)) throw httpError(422, "Object does not exist");
         r.refs.set(name, p.sha);
         return { data: {} };
       },
       updateRef: async (p: { owner: string; repo: string; ref: string; sha: string; force?: boolean }) => {
         this.calls.push("git.updateRef");
         const r = this.repo(p.owner, p.repo);
-        const name = p.ref.replace(/^heads\//, "");
-        if (!r.refs.has(name)) throw httpError(422, "Reference does not exist");
+        const name = branchOf(p.ref, "heads/");
+        if (!name || !r.refs.has(name)) throw httpError(422, "Reference does not exist");
+        if (!r.commits.has(p.sha)) throw httpError(422, "Object does not exist");
         r.refs.set(name, p.sha);
         return { data: {} };
       },
       deleteRef: async (p: { owner: string; repo: string; ref: string }) => {
         this.calls.push("git.deleteRef");
-        this.repo(p.owner, p.repo).refs.delete(p.ref.replace(/^heads\//, ""));
+        const r = this.repo(p.owner, p.repo);
+        const name = branchOf(p.ref, "heads/");
+        if (!name || !r.refs.has(name)) throw httpError(422, "Reference does not exist");
+        r.refs.delete(name);
         return { data: {} };
       },
     },
@@ -409,6 +432,7 @@ export class FakeGitHub {
           base: p.base,
           head: { ref, repo: { full_name: r.fullName } },
           user: { login: this.author },
+          labels: [],
           reviewers: [],
         };
         r.pulls.push(pr);
@@ -452,17 +476,37 @@ export class FakeGitHub {
         }
         return { data: {} };
       },
+      // Like GitHub's, this lists pull requests too (marked `pull_request`),
+      // newest first.
       listForRepo: async (p: { owner: string; repo: string; state?: string; labels?: string }) => {
         const r = this.repo(p.owner, p.repo, true);
-        const data = r.issues
+        const rows = [
+          ...r.issues.map((i) => ({ ...i, pull_request: undefined })),
+          ...r.pulls.map((pr) => ({
+            number: pr.number,
+            title: pr.title,
+            body: pr.body,
+            labels: pr.labels,
+            state: pr.state,
+            pull_request: { url: pr.html_url },
+          })),
+        ];
+        const data = rows
           .filter((i) => !p.state || p.state === "all" || i.state === p.state)
           .filter((i) => !p.labels || p.labels.split(",").every((l) => i.labels.includes(l)))
-          .map((i) => ({ number: i.number, title: i.title, body: i.body, pull_request: undefined }));
+          .sort((a, b) => b.number - a.number)
+          .map(({ number, title, body, pull_request }) => ({ number, title, body, pull_request }));
         return { data };
       },
       listComments: async (p: { owner: string; repo: string; issue_number: number }) => {
-        const issue = this.repo(p.owner, p.repo, true).issues.find((i) => i.number === p.issue_number)!;
-        return { data: issue.comments.map((body) => ({ body })) };
+        const r = this.repo(p.owner, p.repo, true);
+        const thread =
+          r.issues.find((i) => i.number === p.issue_number)?.comments ??
+          r.pulls.find((x) => x.number === p.issue_number)?.comments;
+        if (!thread && !r.pulls.some((x) => x.number === p.issue_number)) {
+          throw httpError(404, "Not Found");
+        }
+        return { data: (thread ?? []).map((body) => ({ body })) };
       },
       create: async (p: { owner: string; repo: string; title: string; body: string; labels?: string[] }) => {
         this.calls.push("issues.create");

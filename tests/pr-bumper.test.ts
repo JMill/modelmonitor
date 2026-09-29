@@ -371,14 +371,27 @@ describe("bumpAll against a GitHub fake", () => {
     const otherFamily = gh.addPull(REPO, { ref: "chore/model-bump/anthropic.opus/claude-opus-5" });
     const otherPrefix = gh.addPull(REPO, { ref: "deps/models/anthropic.sonnet/claude-sonnet-4-6" });
     const human = gh.addPull(REPO, { ref: "feature/sonnet-prompts" });
+    // A fork's PR whose branch name looks like an old bump branch.
+    const fork = gh.addPull(REPO, {
+      ref: "chore/model-bump/anthropic.sonnet/claude-sonnet-4-6",
+      headRepo: "someone/tee-site",
+    });
 
     const [result] = await bumpAll(gh.asOctokit(), sonnetEntries, manifest, undefined);
     expect(result.status).toBe("opened");
     expect(result.superseded).toEqual([stale.html_url]);
     expect(stale.state).toBe("closed");
-    expect((stale as { comments?: string[] }).comments?.[0]).toContain(`Superseded by #`);
-    expect((stale as { comments?: string[] }).comments?.[0]).toContain(result.url);
-    for (const pr of [otherFamily, otherPrefix, human]) expect(pr.state).toBe("open");
+    expect(stale.comments?.[0]).toContain(`Superseded by #`);
+    expect(stale.comments?.[0]).toContain(result.url);
+    for (const pr of [otherFamily, otherPrefix, human, fork]) expect(pr.state).toBe("open");
+  });
+
+  it("ignores a fork's PR that happens to use the bump branch's name", async () => {
+    const fork = gh.addPull(REPO, { ref: branch, headRepo: "someone/tee-site" });
+    const [result] = await bumpAll(gh.asOctokit(), sonnetEntries, manifest, undefined);
+    expect(result.status).toBe("opened");
+    expect(result.url).not.toBe(fork.html_url);
+    expect(fork.state).toBe("open");
   });
 
   it("uses the repo's current name after a rename, so an open PR is still found", async () => {
@@ -404,6 +417,14 @@ describe("bumpAll against a GitHub fake", () => {
     expect(bumpProblems(results)).toEqual([
       expect.stringContaining("GitHub now names this repo `wfsgrp/tee-site`"),
     ]);
+  });
+
+  it("still honours a declined PR after a rename", async () => {
+    const declined = gh.addPull(REPO, { ref: branch, state: "closed" });
+    gh.renameRepo(REPO, "wfsgrp/tee-site");
+    const [result] = await bumpAll(gh.asOctokit(), sonnetEntries, manifest, undefined);
+    expect(result).toMatchObject({ status: "skipped_declined", url: declined.html_url });
+    expect(gh.calls).not.toContain("git.updateRef");
   });
 
   it("opens the PR in the renamed repo, writing only to its current name", async () => {
@@ -547,12 +568,22 @@ describe("bump alerts", () => {
     expect(problems.join("\n")).toContain("anthropic.mythos is not in the manifest");
     expect(problems.join("\n")).toContain("packages/gone.ts not found");
 
+    // GitHub's issue list includes pull requests. A PR that happens to share
+    // the title and label is not the alert issue.
+    const lookalike = gh.addPull("JMill/modelmonitor", {
+      ref: "alert-copy",
+      createBranch: false,
+      title: BUMP_ALERT_TITLE,
+      labels: ["modelmonitor"],
+    });
+
     const octokit = gh.asOctokit();
     const body = formatBumpAlertBody(problems, "https://ci/run/2");
     expect(await upsertIssue(octokit, "JMill", "modelmonitor", BUMP_ALERT_TITLE, body)).toBe("created");
     const issues = gh.issues("JMill/modelmonitor");
     expect(issues).toHaveLength(1);
     expect(issues[0].labels).toEqual(["modelmonitor"]);
+    expect(lookalike.comments).toBeUndefined();
 
     // Same problems tomorrow: no duplicate issue, no repeat comment.
     const again = formatBumpAlertBody(problems, "https://ci/run/3");
