@@ -272,10 +272,12 @@ a 400.
   its body), so if the recommendation later returns to that ID, a fresh PR
   opens instead of the close being read as an opt-out.
 - **Newer recommendation, but no new PR this run**: older bump PRs are
-  still closed, with the same marker, when the default branch already uses
+  still closed, with the same marker and a comment saying why. That covers
+  every run that reads the group's files: the default branch already uses
   the recommendation (a manual upgrade landed first, so merging one would
-  move the repo backwards), or when the new bump waits for a verified alias.
-  In the second case the new PR opens once the alias is published.
+  move the repo backwards), the new bump waits for a verified alias, or a
+  problem in the alert issue holds it back. In the last two cases the new
+  PR opens once the wait or the problem clears.
 - **A failure mid-run** undoes only what that run did: a branch it created
   is deleted, a branch it reset goes back to its previous commit. A branch
   that existed before the run is never deleted.

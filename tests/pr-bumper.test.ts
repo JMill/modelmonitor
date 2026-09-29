@@ -948,6 +948,38 @@ describe("bump alerts", () => {
     ]);
   });
 
+  it("still closes older bump PRs while the group is held back", async () => {
+    const stale = gh.addPull(REPO, { ref: "chore/model-bump/anthropic.sonnet/claude-sonnet-4-6" });
+    const results = await bumpAll(
+      gh.asOctokit(),
+      [
+        entry({ file: "packages/models/src/models.ts", family: "anthropic.sonnet", ...keyAnchored("sonnet") }),
+        entry({ file: "README.md", family: "anthropic.sonnet", ...keyAnchored("sonnet") }),
+      ],
+      manifest,
+      undefined,
+    );
+    expect(results[0].status).toBe("failed");
+    expect(results[0].superseded).toEqual([stale.html_url]);
+    expect(stale.state).toBe("closed");
+    expect(stale.comments?.[0]).toContain("held back until a problem named in the modelmonitor bump alert issue");
+    expect(stale.body).toContain("<!-- modelmonitor:superseded -->");
+    expect(gh.pulls(REPO).filter((p) => p.state === "open")).toHaveLength(0);
+  });
+
+  it("closes older bump PRs when no enrolled file matches any more", async () => {
+    const stale = gh.addPull(REPO, { ref: "chore/model-bump/anthropic.sonnet/claude-sonnet-4-6" });
+    const [result] = await bumpAll(
+      gh.asOctokit(),
+      [entry({ file: "README.md", family: "anthropic.sonnet", ...keyAnchored("sonnet") })],
+      manifest,
+      undefined,
+    );
+    expect(result.status).toBe("skipped_no_match");
+    expect(result.superseded).toEqual([stale.html_url]);
+    expect(stale.state).toBe("closed");
+  });
+
   it("holds the whole group when one of its files cannot be read", async () => {
     const results = await bumpAll(
       gh.asOctokit(),

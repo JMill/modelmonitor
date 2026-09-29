@@ -520,12 +520,34 @@ function isOlderBumpBranch(ref: string, group: BumpGroup, branch: string): boole
   return rest.length > 0 && !rest.includes("/");
 }
 
+type NoPrReason = "on_default" | "awaiting_alias" | "held";
+
+// The comment left on an older bump PR as it is closed.
+function supersededComment(
+  current: { number: number; url: string; declined?: boolean } | NoPrReason,
+  target: BumpTarget,
+): string {
+  const now = `\`${target.key}\` now recommends \`${target.recommended}\``;
+  const closing = "Closing this bump because its model is no longer the recommendation";
+  if (current === "on_default") {
+    return `${now}, and the default branch already uses it. ${closing}, and merging it would move the repo backwards.`;
+  }
+  if (current === "awaiting_alias") {
+    return `${now}. Its bump waits until an undated alias for it is verified, because this repo pins aliases. ${closing}; a new PR opens once the alias is verified.`;
+  }
+  if (current === "held") {
+    return `${now}. Its bump is held back until a problem named in the modelmonitor bump alert issue is fixed. ${closing}; a new PR opens once the problem is fixed.`;
+  }
+  if (current.declined) {
+    return `${now}, which this repo declined in #${current.number} (${current.url}). ${closing}.`;
+  }
+  return `Superseded by #${current.number} (${current.url}): ${now}. Closing this one in its favour.`;
+}
+
 // Close this group's other open bump PRs: they pin an ID that is no longer
 // the recommendation. `current` is the PR for today's branch: the one just
 // opened or already open ("replaced"), or the one the repo closed unmerged
 // ("declined"). Each closed PR gets SUPERSEDED_MARKER in its body.
-type NoPrReason = "on_default" | "awaiting_alias";
-
 async function closeSuperseded(
   octokit: Octokit,
   where: RepoRef,
@@ -534,7 +556,8 @@ async function closeSuperseded(
   branch: string,
   // With no PR for today's branch, older bump PRs are still obsolete:
   // "on_default" when the default branch already pins the recommendation,
-  // "awaiting_alias" when today's bump waits for a verified alias.
+  // "awaiting_alias" when today's bump waits for a verified alias, "held"
+  // when a registry or read problem (named in the alert issue) blocks it.
   current: { number: number; url: string; declined?: boolean } | NoPrReason,
   target: BumpTarget,
 ): Promise<string[]> {
@@ -542,15 +565,7 @@ async function closeSuperseded(
   const closed: string[] = [];
   for (const pr of open) {
     if (!headIsIn(pr, where) || !isOlderBumpBranch(pr.head.ref, group, branch)) continue;
-    const now = `\`${target.key}\` now recommends \`${target.recommended}\``;
-    const why =
-      current === "on_default"
-        ? `${now}, and the default branch already uses it. Closing this bump because merging it would move the repo to a model that is no longer the recommendation.`
-        : current === "awaiting_alias"
-          ? `${now}. Its bump waits until an undated alias for it is verified, because this repo pins aliases. Closing this bump because its model is no longer the recommendation; a new PR opens once the alias is verified.`
-          : current.declined
-            ? `${now}, which this repo declined in #${current.number} (${current.url}). Closing this bump because its model is no longer the recommendation.`
-            : `Superseded by #${current.number} (${current.url}): ${now}. Closing this one in its favour.`;
+    const why = supersededComment(current, target);
     try {
       await octokit.issues.createComment({ owner, repo, issue_number: pr.number, body: why });
       await octokit.pulls.update({
@@ -646,8 +661,10 @@ export async function bumpGroup(
     }
   }
 
-  // Runs that open no PR still close older bump PRs for this family: their
-  // model is no longer the recommendation. A failed sweep only warns.
+  // Every exit from here on sweeps older bump PRs for this family: their
+  // model is no longer the recommendation, whether this run opens today's PR
+  // or not. Exits that open no PR sweep here; the rest sweep once today's PR
+  // is known. A failed sweep only warns.
   const sweepWithoutPr = async (reason: NoPrReason): Promise<string[]> => {
     try {
       const openPrs: ListedPr[] = await octokit.paginate(octokit.pulls.list, {
@@ -664,20 +681,19 @@ export async function bumpGroup(
   };
 
   const changed = result.file_results.filter((f) => f.status === "changed");
+  const incomplete = result.file_results.filter(
+    (f) => f.status === "no_match" || f.status === "error",
+  );
   const needsAlias = group.entries.filter(
     (e) => aliasUnavailable(e, target) && changed.some((f) => f.file === e.file),
   );
+  let noPr: NoPrReason | undefined;
   if (needsAlias.length) {
     // The whole group waits: its files must move together.
     result.status = "skipped_no_alias";
     result.error = `${target.recommended} has no verified undated alias in the manifest today, and ${needsAlias.map((e) => e.file).join(", ")} write${needsAlias.length === 1 ? "s" : ""} {recommended_alias}; skipped rather than pinning the dated ID`;
-    result.superseded = await sweepWithoutPr("awaiting_alias");
-    return result;
-  }
-  const incomplete = result.file_results.filter(
-    (f) => f.status === "no_match" || f.status === "error",
-  );
-  if (changed.length && incomplete.length) {
+    noPr = "awaiting_alias";
+  } else if (changed.length && incomplete.length) {
     // A group's files move together: consumers hold their mirrors equal with
     // drift or parity tests, so a PR that bumps some files and not others
     // fails their CI, and a partial branch would outlive the registry fix.
@@ -686,24 +702,28 @@ export async function bumpGroup(
     result.error = `no PR opened: this group's files change together, and ${incomplete
       .map((f) => `${f.file} ${f.status === "error" ? `could not be read (${f.error})` : "matched nothing"}`)
       .join("; ")}`;
-    return result;
-  }
-  if (!changed.length) {
+    noPr = "held";
+  } else if (!changed.length) {
     const statuses = result.file_results.map((f) => f.status);
     if (statuses.every((s) => s === "no_match")) {
       result.status = "skipped_no_match";
+      noPr = "held";
     } else if (statuses.includes("error")) {
       result.error = result.file_results
         .filter((f) => f.error)
         .map((f) => f.error)
         .join("; ");
+      noPr = "held";
     } else {
-      result.status = "skipped_already_current";
       // The default branch is already on the recommendation (a manual
       // upgrade, or an earlier bump merged): older bump PRs for this family
-      // would now move it backwards, so sweep them too.
-      result.superseded = await sweepWithoutPr("on_default");
+      // would now move it backwards.
+      result.status = "skipped_already_current";
+      noPr = "on_default";
     }
+  }
+  if (noPr) {
+    result.superseded = await sweepWithoutPr(noPr);
     return result;
   }
 
