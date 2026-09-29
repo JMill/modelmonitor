@@ -101,7 +101,17 @@ describe("RegistryEntry", () => {
   });
 
   it("rejects branch prefixes git would refuse", () => {
-    for (const branch_prefix of ["/bump", "bump/", "bump//x", "a..b", "has space"]) {
+    for (const branch_prefix of [
+      "/bump",
+      "bump/",
+      "bump//x",
+      "a..b",
+      "has space",
+      "-bump",
+      "chore/bump.lock",
+      "chore.lock/x",
+      "chore/bump.",
+    ]) {
       expect(RegistryEntry.safeParse({ ...base, branch_prefix }).success).toBe(false);
     }
     expect(RegistryEntry.safeParse({ ...base, branch_prefix: "deps/models" }).success).toBe(true);

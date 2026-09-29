@@ -135,6 +135,14 @@ export const RegistryEntry = z
         "must be a slash-separated git ref path",
       )
       .refine((p) => !p.includes(".."), "must not contain '..'")
+      // Git's ref rules (git check-ref-format --branch): a branch can't
+      // start with '-', and no path component may end in '.' or '.lock'.
+      // The charset regex above already rules out the rest.
+      .refine((p) => !p.startsWith("-"), "must not start with '-'")
+      .refine(
+        (p) => p.split("/").every((c) => !c.endsWith(".") && !c.endsWith(".lock")),
+        "no path component may end in '.' or '.lock'",
+      )
       .default("chore/model-bump"),
     reviewers: z.array(z.string()).default([]),
     // PR title / commit subject overrides; {family}, {recommended}, {from}
