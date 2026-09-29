@@ -109,6 +109,11 @@ export async function checkRegistry(opts: CheckOptions): Promise<CheckReport> {
       warnings.push(`${label}: pattern matches ${plan.matches} times; every match is rewritten on a bump`);
     }
     const pinned = plan.pinned.length ? plan.pinned.join(", ") : "(ID not isolated by the template)";
+    if (!plan.pinned.length) {
+      warnings.push(
+        `${label}: the template doesn't reproduce the text around the ID (a different quote style, say), so the pinned ID can't be isolated: an alias pin is only recognised through a capture group, retired pins aren't flagged, and the PR shows whole matches. Capture the surrounding text and write it back with $1/$2`,
+      );
+    }
     const bump = plan.changes.length
       ? `would change ${plan.changes.map((c) => `line ${c.line}: ${c.from} -> ${c.to}`).join("; ")}`
       : "current, no bump";

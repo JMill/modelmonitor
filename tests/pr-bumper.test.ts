@@ -158,6 +158,22 @@ describe("planFile", () => {
     expect(plan.updated).toBe('model: "claude-sonnet-$1"');
   });
 
+  it("keeps alias equivalence when the template reframes the match", () => {
+    const haiku = resolveTarget(manifest, "anthropic.haiku")!;
+    // The template swaps the quote style, so its literal parts don't frame
+    // the match; the capture group still isolates the pinned ID.
+    const reframing = entry({
+      file: "x",
+      family: "anthropic.haiku",
+      pattern: "'(claude-haiku-[0-9-]+)'",
+      replacement_template: '"{recommended}"',
+    });
+    const current = "m = 'claude-haiku-4-5'\n";
+    expect(planFile(current, reframing, haiku)).toMatchObject({ matches: 1, changes: [], updated: current });
+    const stale = "m = 'claude-haiku-3-5'\n";
+    expect(planFile(stale, reframing, haiku).updated).toBe('m = "claude-haiku-4-5-20251001"\n');
+  });
+
   it("treats an alias of the recommended model as current", () => {
     const haiku = resolveTarget(manifest, "anthropic.haiku")!;
     const plan = planFile(constantsFile, entry({ file: "x", family: "anthropic.haiku", ...keyAnchored("haiku") }), haiku);

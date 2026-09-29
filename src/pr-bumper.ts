@@ -267,9 +267,14 @@ export function planFile(
       .join(target.recommended);
     const ids = extractIds(text, shape);
     for (const id of ids ?? []) if (!pinned.includes(id)) pinned.push(id);
+    // When the template doesn't reproduce the text around the ID (it changes
+    // the quote style, say), the ID can't be isolated. Fall back to the
+    // capture groups: a group holding the recommended ID or one of its
+    // aliases means the match already pins the current model, so an alias
+    // pin isn't rewritten to the dated ID it names.
     const current = ids
       ? ids.every((id) => isCurrentPin(id, target))
-      : next === text;
+      : next === text || m.slice(1).some((g) => g !== undefined && isCurrentPin(g, target));
     updated += content.slice(cursor, index) + (current ? text : next);
     cursor = index + text.length;
     if (!current) {

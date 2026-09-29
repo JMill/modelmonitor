@@ -207,7 +207,10 @@ string, double every backslash instead.
   read as a `$` sequence, and `$1{recommended}` is safe for any ID.
 - Write the template so its literal parts reproduce the text around the ID;
   capture groups do this for you. That is how modelmonitor isolates the
-  pinned ID to compare it with the recommendation.
+  pinned ID to compare it with the recommendation. A template that reframes
+  the match (say, `'…'` becomes `"…"`) still recognises a current pin held
+  in a capture group, but `registry:check --local` warns about it, since
+  retired pins then go unflagged.
 - In `title_template` / `commit_template`, `{from}` is the pinned ID(s)
   being replaced and `{to}` the ID(s) written, which differs from
   `{recommended}` when `{recommended_alias}` is used.

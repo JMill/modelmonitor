@@ -146,6 +146,24 @@ describe("checkRegistry", () => {
     ]);
   });
 
+  it("warns when the template can't isolate the pinned ID", async () => {
+    const r = await run(
+      `consumers:
+  - repo: JMill/app
+    file: src/models.ts
+    family: anthropic.sonnet
+    pattern: '\\bsonnet:\\s*''claude-sonnet-[a-z0-9-]+'''
+    replacement_template: 'sonnet: "{recommended}"'
+`,
+      { "jmill/app": "/co/app" },
+    );
+    expect(r.errors).toEqual([]);
+    expect(r.lines).toContain(
+      "  matches: 1, pinned: (ID not isolated by the template), would change line 2: sonnet: 'claude-sonnet-4-6' -> claude-sonnet-5",
+    );
+    expect(r.warnings).toEqual([expect.stringContaining("the template doesn't reproduce the text around the ID")]);
+  });
+
   it("parses without --local and leaves file checks out", async () => {
     const r = await run(`consumers:${sonnetEntry("src/none.ts")}`);
     expect(r.errors).toEqual([]);
