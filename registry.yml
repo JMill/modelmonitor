@@ -5,7 +5,8 @@
 #
 # Fields:
 #   repo:                 owner/repo (must be writable by BUMP_PR_TOKEN)
-#   file:                 path within the consumer repo
+#   file:                 path from the consumer repo's root (src/models.ts, not
+#                         /src/models.ts or ./src/models.ts)
 #   family:               '<provider>.<family>' key from models.json, split on
 #                         the first dot (anthropic.sonnet, openai.gpt-4.1,
 #                         google.gemini-2.0-flash)

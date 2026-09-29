@@ -85,10 +85,34 @@ export function compilePattern(pattern: string, flags = ""): RegExp {
   return new RegExp(pattern, `g${flags}`);
 }
 
+// Registry `file` values go straight into the git tree API, which wants a
+// plain repo-relative path. Anything else passes a local join() but fails
+// (or writes the wrong entry) on bump day, and two spellings of one file
+// would dodge the uniqueness check. Returns why `file` isn't one, or null.
+export function repoPathProblem(file: string): string | null {
+  const segments = file.split("/");
+  const problems: string[] = [];
+  if (file.startsWith("/")) problems.push('a leading "/"');
+  if (file.endsWith("/")) problems.push('a trailing "/"');
+  if (segments.slice(1, -1).includes("") || /\/\/+/.test(file)) problems.push("an empty segment");
+  if (segments.includes(".")) problems.push('a "." segment');
+  if (segments.includes("..")) problems.push('a ".." segment');
+  if (!problems.length) return null;
+  const tidy = segments.filter((s) => s !== "" && s !== ".").join("/");
+  const hint = segments.includes("..") || !tidy ? "" : ` (write "${tidy}")`;
+  return `must be a path relative to the repo root; found ${problems.join(", ")}${hint}`;
+}
+
 export const RegistryEntry = z
   .object({
     repo: z.string().regex(/^[^/\s]+\/[^/\s]+$/, "must be owner/repo"),
-    file: z.string().min(1),
+    file: z
+      .string()
+      .min(1)
+      .superRefine((file, ctx) => {
+        const problem = repoPathProblem(file);
+        if (problem) ctx.addIssue({ code: z.ZodIssueCode.custom, message: problem });
+      }),
     // JS regex. Anchor it on the key or constant that holds the ID (see the
     // README) so it can't touch comments, docs or other families' lines.
     pattern: z.string().min(1),

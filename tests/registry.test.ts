@@ -73,6 +73,33 @@ describe("RegistryEntry", () => {
     expect(RegistryEntry.safeParse({ ...base, flags: "mm" }).success).toBe(false);
   });
 
+  it("accepts only plain repo-relative file paths", () => {
+    for (const file of [
+      "scripts/_shared/models.ts",
+      "Flare/config.json",
+      "a.ts",
+      ".github/models.yml",
+      "pkg/.hidden/models.ts",
+    ]) {
+      expect(RegistryEntry.safeParse({ ...base, file }).success, file).toBe(true);
+    }
+    const bad: Record<string, string> = {
+      "/scripts/models.ts": 'a leading "/" (write "scripts/models.ts")',
+      "./scripts/models.ts": 'a "." segment (write "scripts/models.ts")',
+      "scripts/./models.ts": 'a "." segment',
+      "../other/models.ts": 'a ".." segment',
+      "scripts/../models.ts": 'a ".." segment',
+      "scripts//models.ts": "an empty segment",
+      "scripts/": 'a trailing "/"',
+      "/": 'a leading "/"',
+    };
+    for (const [file, why] of Object.entries(bad)) {
+      expect(issues(RegistryEntry.safeParse({ ...base, file })), file).toEqual([
+        expect.stringContaining(why),
+      ]);
+    }
+  });
+
   it("rejects branch prefixes git would refuse", () => {
     for (const branch_prefix of ["/bump", "bump/", "bump//x", "a..b", "has space"]) {
       expect(RegistryEntry.safeParse({ ...base, branch_prefix }).success).toBe(false);

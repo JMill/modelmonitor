@@ -179,7 +179,7 @@ string, double every backslash instead.
 | Field                  | Required | Meaning                                                                                            |
 | ---------------------- | -------- | -------------------------------------------------------------------------------------------------- |
 | `repo`                 | yes      | `owner/repo`, writable by `BUMP_PR_TOKEN`                                                          |
-| `file`                 | yes      | Path within the repo                                                                               |
+| `file`                 | yes      | Path from the repo root, e.g. `src/models.ts`: no leading `/`, `.` or `..` segments, or empty ones |
 | `family`               | yes      | `<provider>.<family>` as published, split on the first dot (`anthropic.sonnet`, `openai.gpt-4.1`)  |
 | `pattern`              | yes      | JavaScript regex, matched globally; must not match the empty string                                |
 | `flags`                | no       | Extra regex flags, any of `i`, `m`, `s`, `u`                                                       |
