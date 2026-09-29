@@ -41,6 +41,9 @@ export type BumpStatus =
   | "skipped_no_match"
   | "skipped_existing_pr"
   | "skipped_declined"
+  // An entry writes {recommended_alias}, but the dated recommended ID has no
+  // alias in the manifest today; see aliasUnavailable().
+  | "skipped_no_alias"
   | "failed";
 
 export interface PinChange {
@@ -122,6 +125,23 @@ export function resolveTarget(
     alias: fam.recommended_alias ?? fam.recommended,
     aliases,
   };
+}
+
+// Whether `entry` would write a dated snapshot where it asked for the alias:
+// it uses {recommended_alias}, the recommended ID is dated, and the manifest
+// carries no alias for it (the refresh's alias lookup failed, or the model
+// has no alias yet). Writing the dated ID then would stick: once merged, it
+// equals `recommended`, so later runs call it current and never move it to
+// the alias. Such a bump is skipped for the run instead.
+export function aliasUnavailable(
+  entry: Pick<RegistryEntry, "replacement_template">,
+  target: Pick<BumpTarget, "recommended" | "alias">,
+): boolean {
+  return (
+    entry.replacement_template.includes("{recommended_alias}") &&
+    target.alias === target.recommended &&
+    /-\d{8}$/.test(target.recommended)
+  );
 }
 
 const DATED = (id: string, base: string) =>
@@ -611,6 +631,15 @@ export async function bumpGroup(
   }
 
   const changed = result.file_results.filter((f) => f.status === "changed");
+  const needsAlias = group.entries.filter(
+    (e) => aliasUnavailable(e, target) && changed.some((f) => f.file === e.file),
+  );
+  if (needsAlias.length) {
+    // The whole group waits: its files must move together.
+    result.status = "skipped_no_alias";
+    result.error = `${target.recommended} has no verified undated alias in the manifest today, and ${needsAlias.map((e) => e.file).join(", ")} write${needsAlias.length === 1 ? "s" : ""} {recommended_alias}; skipped rather than pinning the dated ID`;
+    return result;
+  }
   if (!changed.length) {
     const statuses = result.file_results.map((f) => f.status);
     if (statuses.every((s) => s === "no_match")) {

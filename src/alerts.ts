@@ -109,15 +109,21 @@ export const BUMP_ALERT_TITLE = "modelmonitor: bump PRs need attention";
 // One markdown line per problem worth a human's attention: a group that
 // failed, a file whose pattern matched nothing (the consumer refactored and
 // its pin is no longer tracked), a file that could not be read, a registry
-// entry naming a repo GitHub has since renamed, and a declined bump whose
-// pinned model the provider no longer lists. Routine
-// outcomes (opened, current, existing PR, declined) are not problems.
+// entry naming a repo GitHub has since renamed, a bump held back because the
+// alias it writes is unavailable, and a declined bump whose pinned model the
+// provider no longer lists. Routine outcomes (opened, current, existing PR,
+// declined) are not problems.
 export function bumpProblems(results: GroupResult[]): string[] {
   const lines: string[] = [];
   for (const r of results) {
     const where = `\`${r.repo}\` \`${r.family}\``;
     if (r.status === "failed" && r.error) {
       lines.push(`- ${where}: bump failed: ${r.error}`);
+    }
+    if (r.status === "skipped_no_alias") {
+      lines.push(
+        `- ${where}: bump skipped: ${r.error}. It retries on the next refresh; if the model has no alias, switch the template to {recommended}.`,
+      );
     }
     for (const f of r.file_results) {
       if (f.status === "no_match") {

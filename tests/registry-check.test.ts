@@ -33,6 +33,7 @@ const files: Record<string, string> = {
   "/co/app/src/current.ts": "export const M = { sonnet: \"claude-sonnet-5\" };\n",
   "/co/app/src/retired.ts": "export const M = { sonnet: 'claude-sonnet-4-20250514' };\n",
   "/co/app/src/none.ts": "export const MODEL = process.env.MODEL;\n",
+  "/co/app/src/old-haiku.ts": "export const M = { haiku: 'claude-haiku-3-5' };\n",
 };
 
 const run = (rawYaml: string, locals: Record<string, string> = {}) =>
@@ -124,6 +125,24 @@ describe("checkRegistry", () => {
       expect.stringContaining("disagree on title_template"),
       expect.stringContaining("pinned claude-sonnet-4-20250514 is no longer listed"),
       "--local jmill/other: no registry entry for this repo",
+    ]);
+  });
+
+  it("warns when a bump would be held back for want of an alias", async () => {
+    const r = await run(
+      `consumers:
+  - repo: JMill/app
+    file: src/old-haiku.ts
+    family: anthropic.haiku
+    pattern: '(\\bhaiku:\\s*["''])claude-haiku-[a-z0-9-]+(["''])'
+    replacement_template: '$1{recommended_alias}$2'
+`,
+      { "jmill/app": "/co/app" },
+    );
+    expect(r.errors).toEqual([]);
+    expect(r.warnings).toEqual([
+      expect.stringContaining("a bump today would be skipped: claude-haiku-4-5-20251001 has no verified undated alias"),
+      expect.stringContaining("pinned claude-haiku-3-5 is no longer listed"),
     ]);
   });
 

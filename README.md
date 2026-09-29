@@ -196,7 +196,10 @@ string, double every backslash instead.
 - `{recommended}` is the family's `recommended` ID.
 - `{recommended_alias}` is its verified undated alias (`claude-haiku-4-5`
   rather than `claude-haiku-4-5-20251001`), falling back to `{recommended}`
-  when there is none.
+  when the recommended ID is undated. When it is dated and the manifest has
+  no alias for it (the refresh's alias lookup failed, or the model has none
+  yet), a bump that would write it is skipped for that run and reported in
+  the alert issue, rather than pinning the dated snapshot for good.
 - Every occurrence of each placeholder is substituted.
 - The template is otherwise a `String.replace` replacement string: `$1`,
   `$<name>`, `$&` and `$$` expand against the match (write a literal `$` as

@@ -335,6 +335,90 @@ describe("bumpAll against a GitHub fake", () => {
     expect(gh.pulls(REPO)[0].title).toContain("to claude-haiku-5,");
   });
 
+  it("skips an alias bump for the run when the manifest has no alias for a dated ID", async () => {
+    // The refresh's alias lookup failed on the day a new Haiku became
+    // recommended: only the dated ID is published.
+    const noAlias = Manifest.parse({
+      ...manifest,
+      providers: {
+        anthropic: {
+          families: {
+            haiku: {
+              recommended: "claude-haiku-5-20270101",
+              all: [model("claude-haiku-5-20270101"), model("claude-haiku-4-5-20251001")],
+            },
+          },
+        },
+      },
+    });
+    gh.addRepo("JMill/py", {
+      "src/models.ts": "export const M = {\n  haiku: 'claude-haiku-4-5',\n};\n",
+      "claude_models.py": 'HAIKU = "claude-haiku-4-5"\n',
+    });
+    const entries = [
+      entry({
+        repo: "JMill/py",
+        file: "src/models.ts",
+        family: "anthropic.haiku",
+        pattern: keyAnchored("haiku").pattern,
+        replacement_template: "$1{recommended_alias}$2",
+      }),
+      entry({
+        repo: "JMill/py",
+        file: "claude_models.py",
+        family: "anthropic.haiku",
+        pattern: '^(HAIKU = ")claude-haiku-[a-z0-9-]+(")',
+        flags: "m",
+        replacement_template: "$1{recommended}$2",
+      }),
+    ];
+    const results = await bumpAll(gh.asOctokit(), entries, noAlias, undefined);
+    expect(results[0].status).toBe("skipped_no_alias");
+    expect(results[0].error).toContain("claude-haiku-5-20270101 has no verified undated alias");
+    expect(results[0].error).toContain("src/models.ts writes {recommended_alias}");
+    // The whole group waits, including the file that writes {recommended}.
+    expect(gh.calls).not.toContain("git.createCommit");
+    expect(gh.pulls("JMill/py")).toEqual([]);
+    expect(bumpProblems(results)).toEqual([expect.stringContaining("bump skipped")]);
+
+    // Once the alias is published, the bump writes it.
+    const withAlias = Manifest.parse({
+      ...noAlias,
+      providers: {
+        anthropic: {
+          families: {
+            haiku: {
+              recommended: "claude-haiku-5-20270101",
+              recommended_alias: "claude-haiku-5",
+              all: [model("claude-haiku-5-20270101", { aliases: ["claude-haiku-5"] })],
+            },
+          },
+        },
+      },
+    });
+    const [later] = await bumpAll(gh.asOctokit(), entries, withAlias, undefined);
+    expect(later.status).toBe("opened");
+    expect(gh.readFile("JMill/py", later.branch!, "src/models.ts")).toContain("'claude-haiku-5'");
+  });
+
+  it("does not hold back a pin that is already current when alias data is missing", async () => {
+    const [result] = await bumpAll(
+      gh.asOctokit(),
+      [
+        entry({
+          file: "packages/models/src/models.ts",
+          family: "anthropic.haiku",
+          pattern: keyAnchored("haiku").pattern,
+          replacement_template: "$1{recommended_alias}$2",
+        }),
+      ],
+      v1Manifest,
+      undefined,
+    );
+    expect(result.status).toBe("skipped_already_current");
+    expect(bumpProblems([result])).toEqual([]);
+  });
+
   it("respects a closed, unmerged PR for the same branch as an opt-out", async () => {
     const declined = gh.addPull(REPO, { ref: branch, state: "closed" });
     // An older bump PR still open for an ID that is no longer recommended.

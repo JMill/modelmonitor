@@ -1,5 +1,6 @@
 import yaml from "js-yaml";
 import {
+  aliasUnavailable,
   groupEntries,
   isCurrentPin,
   isServed,
@@ -112,6 +113,11 @@ export async function checkRegistry(opts: CheckOptions): Promise<CheckReport> {
       ? `would change ${plan.changes.map((c) => `line ${c.line}: ${c.from} -> ${c.to}`).join("; ")}`
       : "current, no bump";
     lines.push(`  matches: ${plan.matches}, pinned: ${pinned}, ${bump}`);
+    if (plan.changes.length && aliasUnavailable(entry, target)) {
+      warnings.push(
+        `${label}: a bump today would be skipped: ${target.recommended} has no verified undated alias for {recommended_alias}`,
+      );
+    }
     for (const id of plan.pinned) {
       if (!isCurrentPin(id, target) && !isServed(manifest, target.provider, id)) {
         warnings.push(`${label}: pinned ${id} is no longer listed by ${target.provider}`);
