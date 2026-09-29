@@ -335,7 +335,8 @@ family.
 | `JMill/tee-site`        | `apps/sigline/src/lib/claude-models.ts`            | sonnet              |
 | `JMill/tee-site`        | `apps/conduit/src/lib/claude-models.ts`            | sonnet              |
 | `JMill/tee-site`        | `apps/id/src/lib/claude-models.ts`                 | haiku               |
-| `JMill/tee-site`        | `scripts/claude_models.py`                         | sonnet              |
+| `JMill/tee-site`        | `scripts/claude_models.py`                         | opus, sonnet, haiku |
+| `JMill/tee-site`        | `Flare/src/generate/claude.ts`                     | opus, sonnet, haiku |
 | `JMill/tee-site`        | `Flare/config.json` (`generation.model`)           | sonnet              |
 | `JMill/UAPNOW`          | `agents/shared/src/models.ts` (canonical)          | opus, sonnet, haiku |
 | `JMill/UAPNOW`          | `agents/ingest/src/uapnow_ingest/claude_models.py` | haiku               |
