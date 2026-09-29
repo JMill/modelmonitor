@@ -15,8 +15,14 @@ import { Registry } from "../src/types.ts";
 async function main() {
   const raw = await readFile("registry.yml", "utf8");
   const registry = Registry.parse(yaml.load(raw));
+  const runUrl = process.env.GITHUB_RUN_ID
+    ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+    : undefined;
   if (!registry.consumers.length) {
     console.log("registry.yml has no consumers; nothing to bump");
+    // An empty registry is a clean run: close an alert issue left open by
+    // consumers that have since been removed.
+    await reportProblems([], runUrl);
     return;
   }
 
@@ -32,10 +38,6 @@ async function main() {
     process.exit(1);
   }
 
-  const runUrl = process.env.GITHUB_RUN_ID
-    ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
-    : undefined;
-
   const octokit = new Octokit({ auth: token });
   const results = await bumpAll(octokit, registry.consumers, manifest, runUrl);
   for (const r of results) {
@@ -50,10 +52,17 @@ async function main() {
 
   const problems = bumpProblems(results);
   for (const p of problems) console.warn(p);
+  await reportProblems(problems, runUrl);
+}
 
+// Files, updates or resolves the one push-mode alert issue in this repo.
+async function reportProblems(problems: string[], runUrl: string | undefined) {
   // The alert goes to this repo, where the workflow's GITHUB_TOKEN can write
   // issues; the bump token only needs access to consumer repos.
   const alertToken = process.env.GITHUB_TOKEN || process.env.BUMP_PR_TOKEN;
+  // Bumps only run with a token, so a missing one here means an empty
+  // registry run with nothing to resolve.
+  if (!alertToken) return;
   const [owner, repo] = (process.env.GITHUB_REPOSITORY ?? "JMill/modelmonitor").split("/");
   const outcome = await publishBumpAlert(
     new Octokit({ auth: alertToken }),
