@@ -831,7 +831,7 @@ describe("bump alerts", () => {
     expect(bumpProblems(results)).toEqual([]);
   });
 
-  it("lists a no-match file even when the rest of its group opened a PR", async () => {
+  it("holds the whole group, opening no partial PR, when one of its files matches nothing", async () => {
     const results = await bumpAll(
       gh.asOctokit(),
       [
@@ -841,9 +841,29 @@ describe("bump alerts", () => {
       manifest,
       undefined,
     );
-    expect(results[0].status).toBe("opened");
+    expect(results[0].status).toBe("failed");
+    expect(results[0].error).toContain("README.md matched nothing");
+    // No PR and no branch: a partial bump would fail the consumer's drift test.
+    expect(gh.pulls(REPO)).toHaveLength(0);
+    expect(gh.branches(REPO)).not.toContain("chore/model-bump/anthropic.sonnet/claude-sonnet-5");
     expect(bumpProblems(results)).toEqual([
+      expect.stringContaining("bump failed: no PR opened: this group's files change together"),
       expect.stringContaining("`README.md`: pattern matched nothing"),
     ]);
+  });
+
+  it("holds the whole group when one of its files cannot be read", async () => {
+    const results = await bumpAll(
+      gh.asOctokit(),
+      [
+        entry({ file: "packages/models/src/models.ts", family: "anthropic.sonnet", ...keyAnchored("sonnet") }),
+        entry({ file: "packages/gone.ts", family: "anthropic.sonnet", ...keyAnchored("sonnet") }),
+      ],
+      manifest,
+      undefined,
+    );
+    expect(results[0].status).toBe("failed");
+    expect(results[0].error).toContain("packages/gone.ts could not be read");
+    expect(gh.pulls(REPO)).toHaveLength(0);
   });
 });

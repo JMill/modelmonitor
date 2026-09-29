@@ -274,6 +274,11 @@ a 400.
   that existed before the run is never deleted.
 - **Renamed or transferred repo**: bumps use the name GitHub reports today,
   and the alert issue asks for `registry.yml` to be updated.
+- **A file in the group matches nothing or can't be read**: no PR opens for
+  the whole group. Its files change together (consumers hold mirrors equal
+  with drift tests), so a partial bump would only fail their CI. The alert
+  issue names the file to fix, and the next run bumps the group once it
+  matches again.
 
 ### Push-mode alerts
 

@@ -645,6 +645,20 @@ export async function bumpGroup(
     result.error = `${target.recommended} has no verified undated alias in the manifest today, and ${needsAlias.map((e) => e.file).join(", ")} write${needsAlias.length === 1 ? "s" : ""} {recommended_alias}; skipped rather than pinning the dated ID`;
     return result;
   }
+  const incomplete = result.file_results.filter(
+    (f) => f.status === "no_match" || f.status === "error",
+  );
+  if (changed.length && incomplete.length) {
+    // A group's files move together: consumers hold their mirrors equal with
+    // drift or parity tests, so a PR that bumps some files and not others
+    // fails their CI, and a partial branch would outlive the registry fix.
+    // Hold the whole group and let the alert name what to repair.
+    result.status = "failed";
+    result.error = `no PR opened: this group's files change together, and ${incomplete
+      .map((f) => `${f.file} ${f.status === "error" ? `could not be read (${f.error})` : "matched nothing"}`)
+      .join("; ")}`;
+    return result;
+  }
   if (!changed.length) {
     const statuses = result.file_results.map((f) => f.status);
     if (statuses.every((s) => s === "no_match")) {
