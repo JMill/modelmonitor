@@ -91,6 +91,8 @@ export class FakeGitHub {
   // (to simulate a PR opened between the bumper's lookup and its create).
   failNextPullCreate: Error | null = null;
   beforePullCreate: (() => void) | null = null;
+  // Test hook: issues.create fails, as with a token that can't write issues.
+  failIssueWrites = false;
   // Test hook: head-filtered pulls.list returns nothing, as if GitHub's
   // `owner:branch` matching missed the PR.
   headFilterMisses = false;
@@ -508,8 +510,22 @@ export class FakeGitHub {
         }
         return { data: (thread ?? []).map((body) => ({ body })) };
       },
+      update: async (p: {
+        owner: string;
+        repo: string;
+        issue_number: number;
+        state?: "open" | "closed";
+        state_reason?: string;
+      }) => {
+        this.calls.push("issues.update");
+        const issue = this.repo(p.owner, p.repo).issues.find((i) => i.number === p.issue_number);
+        if (!issue) throw httpError(404, "Not Found");
+        if (p.state) issue.state = p.state;
+        return { data: {} };
+      },
       create: async (p: { owner: string; repo: string; title: string; body: string; labels?: string[] }) => {
         this.calls.push("issues.create");
+        if (this.failIssueWrites) throw httpError(403, "Resource not accessible by integration");
         const r = this.repo(p.owner, p.repo);
         const number = this.next++;
         r.issues.push({

@@ -269,12 +269,18 @@ a 400.
 ### Push-mode alerts
 
 Groups that failed (including a family missing from the manifest), files
-whose pattern matched nothing, files that couldn't be read, and declined PRs
-whose pinned model is no longer listed are collected into one issue per run
-in this repo, titled `modelmonitor: bump PRs need attention`. While that
-issue is open, later runs comment on it instead of opening duplicates, and
-stay quiet when the set of problems hasn't changed. Per-entry problems never
-fail the run; a registry that doesn't parse, or a missing manifest, does.
+whose pattern matched nothing, files that couldn't be read, alias bumps held
+back for want of an alias, repos GitHub now knows by another name, and
+declined PRs whose pinned model is no longer listed are collected into one
+issue per run in this repo, titled `modelmonitor: bump PRs need attention`.
+While that issue is open, later runs comment on it instead of opening
+duplicates, and stay quiet when the set of problems hasn't changed. The
+first run with no problems posts an all clear and closes the issue, so a
+problem that comes back later alerts again.
+
+Per-entry problems don't fail the run, as long as the alert issue is filed.
+The run fails (with an Actions error annotation) if the issue can't be
+filed, and also on a registry that doesn't parse or a missing manifest.
 
 ### Checking the registry
 

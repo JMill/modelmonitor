@@ -2,7 +2,10 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   BUMP_ALERT_TITLE,
   bumpProblems,
+  formatAllClearBody,
   formatBumpAlertBody,
+  publishBumpAlert,
+  resolveIssue,
   upsertIssue,
 } from "../src/alerts.ts";
 import { MIGRATION_GUIDE_URL } from "../src/migration-notes.ts";
@@ -749,6 +752,57 @@ describe("bump alerts", () => {
     expect(gh.issues("JMill/modelmonitor")).toHaveLength(1);
     expect(issues[0].comments).toHaveLength(2);
     expect(issues[0].comments[1]).toContain("bump failed: 403");
+
+    // ...and the same new set again is compared with THAT comment, the latest
+    // report, not the issue body: no repeat.
+    expect(await upsertIssue(octokit, "JMill", "modelmonitor", BUMP_ALERT_TITLE, more)).toBe("unchanged");
+    expect(issues[0].comments).toHaveLength(2);
+  });
+
+  it("closes the alert with an all clear, so a recurrence alerts again", async () => {
+    const octokit = gh.asOctokit();
+    const problems = ["- `JMill/x` `anthropic.opus`: bump failed: 403"];
+    expect(await publishBumpAlert(octokit, "JMill", "modelmonitor", problems, "https://ci/run/1")).toBe("created");
+    const [first] = gh.issues("JMill/modelmonitor");
+
+    // Fixed: the next clean run posts the all clear and closes the issue.
+    expect(await publishBumpAlert(octokit, "JMill", "modelmonitor", [], "https://ci/run/2")).toBe("resolved");
+    expect(first.state).toBe("closed");
+    expect(first.comments).toEqual([expect.stringContaining("All clear")]);
+    expect(first.comments[0]).toContain("Run: https://ci/run/2");
+    // Nothing open: later clean runs do nothing.
+    expect(await publishBumpAlert(octokit, "JMill", "modelmonitor", [], undefined)).toBe("none");
+
+    // The same problem comes back: a fresh issue, not silence.
+    expect(await publishBumpAlert(octokit, "JMill", "modelmonitor", problems, undefined)).toBe("created");
+    expect(gh.issues("JMill/modelmonitor").filter((i) => i.state === "open")).toHaveLength(1);
+  });
+
+  it("treats a report after an all clear as new even if the close failed", async () => {
+    const octokit = gh.asOctokit();
+    const body = formatBumpAlertBody(["- `JMill/x` `anthropic.opus`: bump failed: 403"], undefined);
+    await upsertIssue(octokit, "JMill", "modelmonitor", BUMP_ALERT_TITLE, body);
+    const [issue] = gh.issues("JMill/modelmonitor");
+    // A previous run posted the all clear but could not close the issue.
+    issue.comments.push(formatAllClearBody(undefined));
+    expect(await upsertIssue(octokit, "JMill", "modelmonitor", BUMP_ALERT_TITLE, body)).toBe("commented");
+    // And a clean run doesn't post a second all clear before closing.
+    issue.comments.push(formatAllClearBody(undefined));
+    expect(await resolveIssue(octokit, "JMill", "modelmonitor", BUMP_ALERT_TITLE)).toBe("resolved");
+    expect(issue.comments.filter((c) => c.includes("All clear"))).toHaveLength(2);
+    expect(issue.state).toBe("closed");
+  });
+
+  it("reports a failed alert so the run can fail instead of passing silently", async () => {
+    gh.failIssueWrites = true;
+    const outcome = await publishBumpAlert(
+      gh.asOctokit(),
+      "JMill",
+      "modelmonitor",
+      ["- `JMill/x` `anthropic.opus`: bump failed: 403"],
+      undefined,
+    );
+    expect(outcome).toBe("failed");
   });
 
   it("reports nothing when every group is healthy", async () => {
