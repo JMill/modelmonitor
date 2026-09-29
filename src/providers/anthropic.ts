@@ -3,7 +3,7 @@ import type { ModelInfo, ProviderResult, ProviderSnapshot } from "../types.ts";
 import { pickRecommended } from "../rank.ts";
 
 // Modern IDs put the family first: `claude-<family>-<version>[-<date>]`
-// (claude-opus-5, claude-fable-5, claude-haiku-4-5-20251001).
+// (claude-opus-5-5, claude-fable-5-1, claude-haiku-4-5-20251001).
 const MODERN_RE = /^claude-([a-z]+)-\d/;
 // Legacy IDs put the version first: `claude-<version>-<family>-<date>`
 // (claude-3-5-sonnet-20241022, claude-3-opus-20240229).
@@ -18,19 +18,91 @@ export function detectFamily(id: string): string | null {
   return m ? m[1] : null;
 }
 
-export async function fetchModels(apiKey: string): Promise<ProviderResult> {
-  const client = new Anthropic({ apiKey });
+// The slice of the SDK client this module uses. The real `Anthropic` client
+// satisfies it; tests pass a stub.
+export interface AnthropicModelsClient {
+  models: {
+    list(params?: { limit?: number }): AsyncIterable<Anthropic.ModelInfo>;
+    retrieve(modelID: string): PromiseLike<Anthropic.ModelInfo>;
+  };
+}
+
+const DATE_SUFFIX_RE = /-\d{8}$/;
+
+// The Models API lists some models only under a dated ID
+// (claude-haiku-4-5-20251001) while the documented, stable name is the
+// undated alias (claude-haiku-4-5). Nothing in the list links the two, so the
+// alias is derived by stripping the date and confirmed with models.retrieve:
+// it counts only if the API resolves it back to this exact dated ID.
+//
+// A definite answer is recorded either way. An empty list means the undated
+// name was checked and is not this model: it resolves to a different
+// snapshot, or it doesn't exist (404). Consumers must not fall back to
+// treating the undated name as equivalent then. Any other error (a transient
+// failure) leaves the ID out of the map, meaning "unknown"; it never fails
+// the refresh.
+export async function deriveAliases(
+  client: AnthropicModelsClient,
+  ids: string[],
+): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  for (const id of ids) {
+    if (!DATE_SUFFIX_RE.test(id)) continue;
+    const candidate = id.replace(DATE_SUFFIX_RE, "");
+    try {
+      const resolved = await client.models.retrieve(candidate);
+      out.set(id, resolved.id === id ? [candidate] : []);
+    } catch (err) {
+      if (isNotFound(err)) {
+        out.set(id, []);
+        continue;
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[anthropic] alias check for ${candidate} failed: ${msg}`);
+    }
+  }
+  return out;
+}
+
+// The SDK's NotFoundError carries `status: 404`; checked structurally so a
+// stub client (or another SDK major) is judged the same way.
+function isNotFound(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { status?: unknown }).status === 404
+  );
+}
+
+export async function fetchModels(
+  apiKey: string,
+  client: AnthropicModelsClient = new Anthropic({ apiKey }),
+): Promise<ProviderResult> {
   const models: ModelInfo[] = [];
-  for await (const m of client.models.list()) {
-    const id = (m as { id: string }).id;
-    const created_at = (m as { created_at?: string }).created_at;
-    const display_name = (m as { display_name?: string }).display_name;
+  // 1000 is the endpoint's page-size ceiling: one request instead of pages of 20.
+  for await (const m of client.models.list({ limit: 1000 })) {
     models.push({
-      id,
-      display_name,
-      created_at,
+      id: m.id,
+      display_name: m.display_name,
+      created_at: m.created_at,
+      // The Models API has no deprecation field; retired models just stop
+      // being listed. See the README before relying on this.
       deprecated: false,
+      max_input_tokens: m.max_input_tokens,
+      max_tokens: m.max_tokens,
+      // Shallow spread, not a cast: TypeScript won't treat an SDK interface
+      // as a string-keyed record, but it accepts a plain copy of one.
+      capabilities: m.capabilities ? { ...m.capabilities } : null,
     });
+  }
+
+  const aliases = await deriveAliases(
+    client,
+    models.map((m) => m.id),
+  );
+  for (const m of models) {
+    const a = aliases.get(m.id);
+    if (a) m.aliases = a;
   }
 
   const families: Record<string, ModelInfo[]> = {};
@@ -47,8 +119,12 @@ export async function fetchModels(apiKey: string): Promise<ProviderResult> {
   const snapshot: ProviderSnapshot = { families: {} };
   for (const [fam, list] of Object.entries(families)) {
     list.sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+    const recommended = pickRecommended(list, (m) => m.created_at ?? "");
+    const recommended_alias = list.find((m) => m.id === recommended)
+      ?.aliases?.[0];
     snapshot.families[fam] = {
-      recommended: pickRecommended(list, (m) => m.created_at ?? ""),
+      recommended,
+      ...(recommended_alias ? { recommended_alias } : {}),
       all: list,
     };
   }

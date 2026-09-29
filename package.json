@@ -11,11 +11,12 @@
   "scripts": {
     "check": "tsx scripts/check-models.ts",
     "bump-prs": "tsx scripts/open-bump-prs.ts",
+    "registry:check": "tsx scripts/validate-registry.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
+    "@anthropic-ai/sdk": "^0.128.0",
     "@octokit/rest": "^21.0.0",
     "js-yaml": "^4.1.0",
     "openai": "^4.77.0",
@@ -24,6 +25,8 @@
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.14.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
