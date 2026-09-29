@@ -337,12 +337,59 @@ describe("bumpAll against a GitHub fake", () => {
 
   it("respects a closed, unmerged PR for the same branch as an opt-out", async () => {
     const declined = gh.addPull(REPO, { ref: branch, state: "closed" });
+    // An older bump PR still open for an ID that is no longer recommended.
+    const stale = gh.addPull(REPO, { ref: "chore/model-bump/anthropic.sonnet/claude-sonnet-4-6" });
     const [result] = await bumpAll(gh.asOctokit(), sonnetEntries, manifest, undefined);
     expect(result.status).toBe("skipped_declined");
     expect(result.url).toBe(declined.html_url);
-    expect(gh.pulls(REPO)).toHaveLength(1);
+    expect(gh.pulls(REPO)).toHaveLength(2);
     expect(gh.calls).not.toContain("git.createRef");
     expect(gh.calls).not.toContain("git.updateRef");
+    // The sweep still runs on the declined path.
+    expect(result.superseded).toEqual([stale.html_url]);
+    expect(stale.state).toBe("closed");
+    expect(stale.comments?.[0]).toContain(`which this repo declined in #${declined.number}`);
+  });
+
+  it("reopens a bump when the recommendation flips back (A -> B -> A)", async () => {
+    const sonnet = (recommended: string) =>
+      Manifest.parse({
+        ...manifest,
+        providers: {
+          anthropic: {
+            families: {
+              sonnet: {
+                recommended,
+                all: [model("claude-sonnet-5-1"), model("claude-sonnet-5"), model("claude-sonnet-4-6")],
+              },
+            },
+          },
+        },
+      });
+    const branchFor = (id: string) => `chore/model-bump/anthropic.sonnet/${id}`;
+
+    const [a] = await bumpAll(gh.asOctokit(), sonnetEntries, sonnet("claude-sonnet-5"), undefined);
+    expect(a.status).toBe("opened");
+    const prA = gh.pulls(REPO).find((p) => p.head.ref === branchFor("claude-sonnet-5"))!;
+
+    const [b] = await bumpAll(gh.asOctokit(), sonnetEntries, sonnet("claude-sonnet-5-1"), undefined);
+    expect(b.status).toBe("opened");
+    expect(b.superseded).toEqual([prA.html_url]);
+    expect(prA.state).toBe("closed");
+    const prB = gh.pulls(REPO).find((p) => p.head.ref === branchFor("claude-sonnet-5-1"))!;
+
+    // B is withdrawn: A is recommended again. modelmonitor closed PR-A, not a
+    // person, so that close is no opt-out.
+    const [again] = await bumpAll(gh.asOctokit(), sonnetEntries, sonnet("claude-sonnet-5"), undefined);
+    expect(again.status).toBe("opened");
+    expect(again.url).not.toBe(prA.html_url);
+    expect(again.superseded).toEqual([prB.html_url]);
+    expect(prB.state).toBe("closed");
+    expect(gh.readFile(REPO, branchFor("claude-sonnet-5"), "scripts/run.ts")).toContain(
+      '"claude-sonnet-5"',
+    );
+    const open = gh.pulls(REPO).filter((p) => p.state === "open");
+    expect(open.map((p) => p.head.ref)).toEqual([branchFor("claude-sonnet-5")]);
   });
 
   it("leaves an existing open PR alone, still closing older ones it supersedes", async () => {
@@ -384,6 +431,25 @@ describe("bumpAll against a GitHub fake", () => {
     expect(stale.comments?.[0]).toContain(`Superseded by #`);
     expect(stale.comments?.[0]).toContain(result.url);
     for (const pr of [otherFamily, otherPrefix, human, fork]) expect(pr.state).toBe("open");
+  });
+
+  it("sweeps only its own branches when another group's prefix nests under it", async () => {
+    // Group 1: prefix `deps`, family anthropic.sonnet. Another entry uses the
+    // prefix `deps/anthropic.sonnet` for anthropic.opus, so its branches sit
+    // one level below group 1's.
+    const nested = gh.addPull(REPO, {
+      ref: "deps/anthropic.sonnet/anthropic.opus/claude-opus-5",
+    });
+    const stale = gh.addPull(REPO, { ref: "deps/anthropic.sonnet/claude-sonnet-4-6" });
+    const [result] = await bumpAll(
+      gh.asOctokit(),
+      sonnetEntries.map((e) => ({ ...e, branch_prefix: "deps" })),
+      manifest,
+      undefined,
+    );
+    expect(result.status).toBe("opened");
+    expect(result.superseded).toEqual([stale.html_url]);
+    expect(nested.state).toBe("open");
   });
 
   it("ignores a fork's PR that happens to use the bump branch's name", async () => {

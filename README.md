@@ -246,13 +246,22 @@ a 400.
 
 - **Open PR for the branch**: left alone, never force-pushed. Push fixes to
   it freely.
-- **Closed without merging**: treated as the repo opting out of that ID for
-  that family. It is not reopened; the next recommended ID opens a new PR.
+- **Closed without merging** by a person: treated as the repo opting out of
+  that ID for that family. It is not reopened; the next recommended ID opens
+  a new PR. Older bump PRs for the family that are still open are closed,
+  since they pin an ID that is no longer recommended either.
 - **Branch left without a PR** (a failed run, a merged PR whose branch
   wasn't deleted): reset to a fresh commit and reused.
 - **Newer recommendation while an older bump PR is open**: the new PR opens
-  and the older one is closed with a comment linking it.
-- **A failure mid-run** deletes the branch again, so nothing is left behind.
+  and the older one is closed with a comment linking it. modelmonitor marks
+  a PR it closes this way (`<!-- modelmonitor:superseded -->` at the end of
+  its body), so if the recommendation later returns to that ID, a fresh PR
+  opens instead of the close being read as an opt-out.
+- **A failure mid-run** undoes only what that run did: a branch it created
+  is deleted, a branch it reset goes back to its previous commit. A branch
+  that existed before the run is never deleted.
+- **Renamed or transferred repo**: bumps use the name GitHub reports today,
+  and the alert issue asks for `registry.yml` to be updated.
 
 ### Push-mode alerts
 

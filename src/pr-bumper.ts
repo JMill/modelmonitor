@@ -20,7 +20,8 @@ import {
 //      current (equal to recommended, or one of its aliases).
 //   3. Look up PRs for the target branch in any state: an open one is left
 //      alone (its branch is never reset); a closed, unmerged one is the
-//      consumer declining this ID and is respected as an opt-out.
+//      consumer declining this ID and is respected as an opt-out, unless
+//      modelmonitor itself closed it as superseded.
 //   4. Build the commit with the git data API (blobs -> tree -> commit)
 //      parented on that same base commit, then point the branch at it
 //      (creating it, or resetting a branch left behind without a PR).
@@ -327,6 +328,14 @@ const cell = (s: string) => {
 
 export const MARKER_PREFIX = "<!-- modelmonitor:bump";
 
+// Appended to the body of a bump PR modelmonitor closes as superseded, so a
+// later run can tell that close apart from a person declining the bump. If
+// the recommendation later returns to that PR's ID, a fresh PR opens.
+export const SUPERSEDED_MARKER = "<!-- modelmonitor:superseded -->";
+
+const closedAsSuperseded = (pr: { body?: string | null }) =>
+  (pr.body ?? "").includes(SUPERSEDED_MARKER);
+
 interface PrText {
   title: string;
   commitMessage: string;
@@ -476,28 +485,45 @@ interface ListedPr {
 const headIsIn = (pr: ListedPr, where: RepoRef) =>
   pr.head.repo?.full_name?.toLowerCase() === where.fullName.toLowerCase();
 
+// An older bump branch of this group: `<prefix>/<family>/<one segment>`.
+// Exactly one trailing segment, so a group whose branch_prefix happens to
+// be `<prefix>/<family>` (and so nests under this one) is never swept.
+function isOlderBumpBranch(ref: string, group: BumpGroup, branch: string): boolean {
+  const prefix = `${group.branch_prefix}/${refSafe(group.family)}/`;
+  if (ref === branch || !ref.startsWith(prefix)) return false;
+  const rest = ref.slice(prefix.length);
+  return rest.length > 0 && !rest.includes("/");
+}
+
+// Close this group's other open bump PRs: they pin an ID that is no longer
+// the recommendation. `current` is the PR for today's branch: the one just
+// opened or already open ("replaced"), or the one the repo closed unmerged
+// ("declined"). Each closed PR gets SUPERSEDED_MARKER in its body.
 async function closeSuperseded(
   octokit: Octokit,
   where: RepoRef,
   open: ListedPr[],
   group: BumpGroup,
   branch: string,
-  replacement: { number: number; url: string },
+  current: { number: number; url: string; declined?: boolean },
   target: BumpTarget,
 ): Promise<string[]> {
   const { owner, repo } = where;
-  const prefix = `${group.branch_prefix}/${refSafe(group.family)}/`;
   const closed: string[] = [];
   for (const pr of open) {
-    if (!headIsIn(pr, where) || pr.head.ref === branch || !pr.head.ref.startsWith(prefix)) continue;
+    if (!headIsIn(pr, where) || !isOlderBumpBranch(pr.head.ref, group, branch)) continue;
+    const why = current.declined
+      ? `\`${target.key}\` now recommends \`${target.recommended}\`, which this repo declined in #${current.number} (${current.url}). Closing this bump because its model is no longer the recommendation.`
+      : `Superseded by #${current.number} (${current.url}): \`${target.key}\` now recommends \`${target.recommended}\`. Closing this one in its favour.`;
     try {
-      await octokit.issues.createComment({
+      await octokit.issues.createComment({ owner, repo, issue_number: pr.number, body: why });
+      await octokit.pulls.update({
         owner,
         repo,
-        issue_number: pr.number,
-        body: `Superseded by #${replacement.number} (${replacement.url}): \`${target.key}\` now recommends \`${target.recommended}\`. Closing this one in its favour.`,
+        pull_number: pr.number,
+        state: "closed",
+        body: `${pr.body ?? ""}\n\n${SUPERSEDED_MARKER}`,
       });
-      await octokit.pulls.update({ owner, repo, pull_number: pr.number, state: "closed" });
       closed.push(pr.html_url);
     } catch (err) {
       console.warn(`[${group.repo}] could not close superseded PR #${pr.number}: ${messageOf(err)}`);
@@ -612,8 +638,8 @@ export async function bumpGroup(
     state: "open",
     per_page: 100,
   });
-  const sweep = (replacement: { number: number; url: string }) =>
-    closeSuperseded(octokit, where, openPrs, group, branch, replacement, target).catch((err) => {
+  const sweep = (current: { number: number; url: string; declined?: boolean }) =>
+    closeSuperseded(octokit, where, openPrs, group, branch, current, target).catch((err) => {
       console.warn(`[${group.repo}] superseded-PR sweep failed: ${messageOf(err)}`);
       return [] as string[];
     });
@@ -629,10 +655,20 @@ export async function bumpGroup(
     result.superseded = await sweep({ number: open.number, url: open.html_url });
     return result;
   }
-  const declined = forBranch.find((p) => p.state === "closed" && !p.merged_at);
+  // Closed unmerged by a person. A PR modelmonitor closed as superseded is
+  // not an opt-out: the recommendation came back to this ID.
+  const declined = forBranch.find(
+    (p) => p.state === "closed" && !p.merged_at && !closedAsSuperseded(p),
+  );
   if (declined) {
     result.status = "skipped_declined";
     result.url = declined.html_url;
+    // Older bump PRs still point at IDs that are no longer recommended.
+    result.superseded = await sweep({
+      number: declined.number,
+      url: declined.html_url,
+      declined: true,
+    });
     return result;
   }
 
