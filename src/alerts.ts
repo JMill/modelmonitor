@@ -108,8 +108,9 @@ export const BUMP_ALERT_TITLE = "modelmonitor: bump PRs need attention";
 
 // One markdown line per problem worth a human's attention: a group that
 // failed, a file whose pattern matched nothing (the consumer refactored and
-// its pin is no longer tracked), a file that could not be read, and a
-// declined bump whose pinned model the provider no longer lists. Routine
+// its pin is no longer tracked), a file that could not be read, a registry
+// entry naming a repo GitHub has since renamed, and a declined bump whose
+// pinned model the provider no longer lists. Routine
 // outcomes (opened, current, existing PR, declined) are not problems.
 export function bumpProblems(results: GroupResult[]): string[] {
   const lines: string[] = [];
@@ -126,6 +127,11 @@ export function bumpProblems(results: GroupResult[]): string[] {
       } else if (f.status === "error" && !(r.status === "failed" && r.error)) {
         lines.push(`- ${where} \`${f.file}\`: ${f.error}`);
       }
+    }
+    if (r.resolved_repo) {
+      lines.push(
+        `- ${where}: GitHub now names this repo \`${r.resolved_repo}\` (renamed or transferred). Bumps still run against it; update registry.yml.`,
+      );
     }
     if (r.status === "skipped_declined" && r.unserved.length) {
       lines.push(

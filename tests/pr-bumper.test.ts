@@ -263,7 +263,10 @@ describe("bumpAll against a GitHub fake", () => {
     expect(pr.body).toContain("`temperature`, `top_p` and `top_k`");
     expect(pr.body).toContain(MIGRATION_GUIDE_URL);
     expect(pr.body).toContain("Run: https://ci/run/1");
-    expect(pr.reviewers.sort()).toEqual(["JMill", "octocat"]);
+    // JMill owns the bump token and so authors the PR; GitHub would reject
+    // the whole request if the author were asked, so only octocat is.
+    expect(pr.user.login).toBe("JMill");
+    expect(pr.reviewers).toEqual(["octocat"]);
     expect(commit.message.split("\n")[0]).toBe(pr.title);
   });
 
@@ -376,6 +379,88 @@ describe("bumpAll against a GitHub fake", () => {
     expect((stale as { comments?: string[] }).comments?.[0]).toContain(`Superseded by #`);
     expect((stale as { comments?: string[] }).comments?.[0]).toContain(result.url);
     for (const pr of [otherFamily, otherPrefix, human]) expect(pr.state).toBe("open");
+  });
+
+  it("uses the repo's current name after a rename, so an open PR is still found", async () => {
+    const stale = gh.addPull(REPO, { ref: "chore/model-bump/anthropic.sonnet/claude-sonnet-4-6" });
+    const open = gh.addPull(REPO, { ref: branch });
+    const humanWork = gh.commitOf(REPO, branch).sha;
+    gh.renameRepo(REPO, "wfsgrp/tee-site");
+
+    // registry.yml still says JMill/tee-site.
+    const results = await bumpAll(gh.asOctokit(), sonnetEntries, manifest, undefined);
+    expect(results[0]).toMatchObject({
+      status: "skipped_existing_pr",
+      url: open.html_url,
+      resolved_repo: "wfsgrp/tee-site",
+    });
+    // The open PR's branch is untouched and nothing was created or deleted.
+    expect(gh.commitOf("wfsgrp/tee-site", branch).sha).toBe(humanWork);
+    for (const call of ["git.updateRef", "git.createRef", "git.deleteRef", "pulls.create"]) {
+      expect(gh.calls).not.toContain(call);
+    }
+    expect(open.state).toBe("open");
+    expect(stale.state).toBe("closed");
+    expect(bumpProblems(results)).toEqual([
+      expect.stringContaining("GitHub now names this repo `wfsgrp/tee-site`"),
+    ]);
+  });
+
+  it("opens the PR in the renamed repo, writing only to its current name", async () => {
+    gh.renameRepo(REPO, "wfsgrp/tee-site");
+    const [result] = await bumpAll(gh.asOctokit(), sonnetEntries, manifest, undefined);
+    expect(result.status).toBe("opened");
+    expect(result.url).toContain("github.com/wfsgrp/tee-site/pull/");
+    expect(gh.readFile("wfsgrp/tee-site", branch, "scripts/run.ts")).toContain("claude-sonnet-5");
+  });
+
+  it("never resets a branch whose open PR the head-filtered lookup misses", async () => {
+    const open = gh.addPull(REPO, { ref: branch });
+    const humanWork = gh.commitOf(REPO, branch).sha;
+    gh.headFilterMisses = true;
+    const [result] = await bumpAll(gh.asOctokit(), sonnetEntries, manifest, undefined);
+    expect(result).toMatchObject({ status: "skipped_existing_pr", url: open.html_url });
+    expect(gh.commitOf(REPO, branch).sha).toBe(humanWork);
+    expect(gh.calls).not.toContain("git.updateRef");
+  });
+
+  it("restores, never deletes, a pre-existing branch when opening the PR fails", async () => {
+    gh.addPull(REPO, { ref: branch, state: "closed", merged: true });
+    const leftover = gh.commitOf(REPO, branch).sha;
+    gh.failNextPullCreate = Object.assign(new Error("Validation Failed"), { status: 422 });
+    const [result] = await bumpAll(gh.asOctokit(), sonnetEntries, manifest, undefined);
+    expect(result.status).toBe("failed");
+    expect(gh.calls).not.toContain("git.deleteRef");
+    expect(gh.branches(REPO)).toContain(branch);
+    expect(gh.commitOf(REPO, branch).sha).toBe(leftover);
+  });
+
+  it("reports a PR opened mid-run as existing and puts its branch back", async () => {
+    gh.addPull(REPO, { ref: branch, state: "closed", merged: true });
+    const leftover = gh.commitOf(REPO, branch).sha;
+    let racer: ReturnType<FakeGitHub["addPull"]> | undefined;
+    // Someone opens a PR on the leftover branch between our lookup and create.
+    gh.beforePullCreate = () => {
+      racer = gh.addPull(REPO, { ref: branch, createBranch: false });
+    };
+    const [result] = await bumpAll(gh.asOctokit(), sonnetEntries, manifest, undefined);
+    expect(result).toMatchObject({ status: "skipped_existing_pr", url: racer!.html_url });
+    expect(result.error).toBeUndefined();
+    expect(gh.calls).not.toContain("git.deleteRef");
+    // The reset is undone, so the new PR shows the branch as it was.
+    expect(gh.commitOf(REPO, branch).sha).toBe(leftover);
+    expect(racer!.state).toBe("open");
+  });
+
+  it("never deletes a branch GitHub says already has a PR, even one this run created", async () => {
+    let racer: ReturnType<FakeGitHub["addPull"]> | undefined;
+    gh.beforePullCreate = () => {
+      racer = gh.addPull(REPO, { ref: branch, createBranch: false });
+    };
+    const [result] = await bumpAll(gh.asOctokit(), sonnetEntries, manifest, undefined);
+    expect(result).toMatchObject({ status: "skipped_existing_pr", url: racer!.html_url });
+    expect(gh.calls).not.toContain("git.deleteRef");
+    expect(gh.branches(REPO)).toContain(branch);
   });
 
   it("deletes the branch when opening the PR fails, leaving no orphan", async () => {

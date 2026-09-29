@@ -19,15 +19,20 @@ import {
 //      entry's pattern, and decide per match whether the pinned ID is already
 //      current (equal to recommended, or one of its aliases).
 //   3. Look up PRs for the target branch in any state: an open one is left
-//      alone; a closed, unmerged one is the consumer declining this ID and is
-//      respected as an opt-out.
+//      alone (its branch is never reset); a closed, unmerged one is the
+//      consumer declining this ID and is respected as an opt-out.
 //   4. Build the commit with the git data API (blobs -> tree -> commit)
 //      parented on that same base commit, then point the branch at it
 //      (creating it, or resetting a branch left behind without a PR).
 //   5. Open the PR, request reviewers, and close older open bump PRs for the
 //      same family as superseded.
-// Any failure after the branch moves deletes the branch again, so a failed
-// run leaves nothing behind for the next run to trip over.
+// Every call after step 1 uses the repo's canonical owner and name from
+// repos.get, not the registry's spelling: reads of a renamed or transferred
+// repo follow a redirect, but the `owner:branch` head filter and
+// head.repo.full_name only ever match the current name.
+// A failure after the branch moves undoes only what this run did: a branch
+// it created is deleted, a branch it reset goes back to its previous commit.
+// A pre-existing branch is never deleted.
 
 export type BumpStatus =
   | "opened"
@@ -78,6 +83,9 @@ export interface GroupResult {
   unserved: string[];
   // PRs closed because this run's PR replaces them.
   superseded: string[];
+  // Set when GitHub resolves `repo` to a different owner/name (the repo was
+  // renamed or transferred): the registry entry should be updated.
+  resolved_repo?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -447,27 +455,41 @@ async function readAtTree(
   return { error: `${path} not found on the default branch` };
 }
 
+// The canonical coordinates of a consumer repo, from repos.get.
+interface RepoRef {
+  owner: string;
+  repo: string;
+  fullName: string;
+}
+
+interface ListedPr {
+  number: number;
+  state: string;
+  merged_at: string | null;
+  html_url: string;
+  body?: string | null;
+  head: { ref: string; repo: { full_name?: string } | null };
+}
+
+// A PR whose head branch lives in the consumer repo itself, not a fork that
+// happens to use the same branch name.
+const headIsIn = (pr: ListedPr, where: RepoRef) =>
+  pr.head.repo?.full_name?.toLowerCase() === where.fullName.toLowerCase();
+
 async function closeSuperseded(
   octokit: Octokit,
-  owner: string,
-  repo: string,
+  where: RepoRef,
+  open: ListedPr[],
   group: BumpGroup,
   branch: string,
   replacement: { number: number; url: string },
   target: BumpTarget,
 ): Promise<string[]> {
+  const { owner, repo } = where;
   const prefix = `${group.branch_prefix}/${refSafe(group.family)}/`;
-  const open = await octokit.paginate(octokit.pulls.list, {
-    owner,
-    repo,
-    state: "open",
-    per_page: 100,
-  });
   const closed: string[] = [];
   for (const pr of open) {
-    const sameRepo =
-      pr.head.repo?.full_name?.toLowerCase() === `${owner}/${repo}`.toLowerCase();
-    if (!sameRepo || pr.head.ref === branch || !pr.head.ref.startsWith(prefix)) continue;
+    if (!headIsIn(pr, where) || pr.head.ref === branch || !pr.head.ref.startsWith(prefix)) continue;
     try {
       await octokit.issues.createComment({
         owner,
@@ -506,13 +528,22 @@ export async function bumpGroup(
     return result;
   }
   result.recommended = target.recommended;
-  const [owner, repo] = group.repo.split("/");
   const branch = branchName(group.branch_prefix, group.family, target.recommended);
   result.branch = branch;
 
+  // Canonical coordinates first: every later call, the head filter and the
+  // same-repo check use GitHub's current owner/name, never the registry's.
+  const [regOwner, regRepo] = group.repo.split("/");
+  const info = (await octokit.repos.get({ owner: regOwner, repo: regRepo })).data;
+  const where: RepoRef = { owner: info.owner.login, repo: info.name, fullName: info.full_name };
+  const { owner, repo } = where;
+  if (where.fullName.toLowerCase() !== group.repo.toLowerCase()) {
+    result.resolved_repo = where.fullName;
+  }
+
   // One consistent snapshot: every file is read from the same base commit the
   // bump commit is parented on, so a concurrent push can't be overwritten.
-  const baseBranch = (await octokit.repos.get({ owner, repo })).data.default_branch;
+  const baseBranch = info.default_branch;
   const baseSha = (await octokit.git.getRef({ owner, repo, ref: `heads/${baseBranch}` }))
     .data.object.sha;
   const baseTree = (await octokit.git.getCommit({ owner, repo, commit_sha: baseSha }))
@@ -569,30 +600,36 @@ export async function bumpGroup(
     return result;
   }
 
-  const prs = (
-    await octokit.pulls.list({ owner, repo, head: `${owner}:${branch}`, state: "all" })
-  ).data;
-  const open = prs.find((p) => p.state === "open");
+  // PRs for this exact branch (any state), plus every open PR: the open list
+  // double-checks the head-filtered lookup before a branch is ever reset, and
+  // feeds the superseded sweep.
+  const forBranch = (
+    await octokit.pulls.list({ owner, repo, head: `${owner}:${branch}`, state: "all", per_page: 100 })
+  ).data.filter((p) => headIsIn(p, where) && p.head.ref === branch);
+  const openPrs: ListedPr[] = await octokit.paginate(octokit.pulls.list, {
+    owner,
+    repo,
+    state: "open",
+    per_page: 100,
+  });
+  const sweep = (replacement: { number: number; url: string }) =>
+    closeSuperseded(octokit, where, openPrs, group, branch, replacement, target).catch((err) => {
+      console.warn(`[${group.repo}] superseded-PR sweep failed: ${messageOf(err)}`);
+      return [] as string[];
+    });
+
+  const open =
+    forBranch.find((p) => p.state === "open") ??
+    openPrs.find((p) => headIsIn(p, where) && p.head.ref === branch);
   if (open) {
     result.status = "skipped_existing_pr";
     result.url = open.html_url;
     // Re-run the sweep so an older PR that a failed sweep left open still
     // gets closed in favour of this one.
-    result.superseded = await closeSuperseded(
-      octokit,
-      owner,
-      repo,
-      group,
-      branch,
-      { number: open.number, url: open.html_url },
-      target,
-    ).catch((err) => {
-      console.warn(`[${group.repo}] superseded-PR sweep failed: ${messageOf(err)}`);
-      return [];
-    });
+    result.superseded = await sweep({ number: open.number, url: open.html_url });
     return result;
   }
-  const declined = prs.find((p) => p.state === "closed" && !p.merged_at);
+  const declined = forBranch.find((p) => p.state === "closed" && !p.merged_at);
   if (declined) {
     result.status = "skipped_declined";
     result.url = declined.html_url;
@@ -601,7 +638,7 @@ export async function bumpGroup(
 
   const first = group.entries[0];
   const text = buildPrText({
-    repo: group.repo,
+    repo: where.fullName,
     baseSha,
     target,
     changed,
@@ -632,18 +669,40 @@ export async function bumpGroup(
     parents: [baseSha],
   });
 
-  let branchExists = true;
+  // The branch's commit before this run touched it, when it already existed.
+  let previousSha: string | undefined;
   try {
-    await octokit.git.getRef({ owner, repo, ref: `heads/${branch}` });
+    previousSha = (await octokit.git.getRef({ owner, repo, ref: `heads/${branch}` })).data.object
+      .sha;
   } catch (err) {
     if (statusOf(err) !== 404) throw err;
-    branchExists = false;
   }
 
+  // What this run did to the branch, so a failure undoes exactly that.
+  let moved: "created" | "reset" | undefined;
+  const undoBranch = async () => {
+    try {
+      if (moved === "created") {
+        await octokit.git.deleteRef({ owner, repo, ref: `heads/${branch}` });
+      } else if (moved === "reset" && previousSha) {
+        await octokit.git.updateRef({
+          owner,
+          repo,
+          ref: `heads/${branch}`,
+          sha: previousSha,
+          force: true,
+        });
+      }
+    } catch (err) {
+      console.warn(`[${group.repo}] could not undo ${branch} after a failed bump: ${messageOf(err)}`);
+    }
+  };
+
   try {
-    if (branchExists) {
+    if (previousSha) {
       // Left behind without an open or declined PR (a failed run, a merged
-      // PR whose branch wasn't deleted): safe to reset.
+      // PR whose branch wasn't deleted): safe to reset. A branch with an open
+      // PR returned above and is never reset.
       await octokit.git.updateRef({
         owner,
         repo,
@@ -651,6 +710,7 @@ export async function bumpGroup(
         sha: commit.data.sha,
         force: true,
       });
+      moved = "reset";
     } else {
       await octokit.git.createRef({
         owner,
@@ -658,51 +718,85 @@ export async function bumpGroup(
         ref: `refs/heads/${branch}`,
         sha: commit.data.sha,
       });
+      moved = "created";
     }
-    const pr = await octokit.pulls.create({
-      owner,
-      repo,
-      head: branch,
-      base: baseBranch,
-      title: text.title,
-      body: text.body,
-    });
-    result.status = "opened";
-    result.url = pr.data.html_url;
 
-    const reviewers = [...new Set(group.entries.flatMap((e) => e.reviewers))];
+    let pr: { number: number; html_url: string; user?: { login: string } | null };
+    try {
+      pr = (
+        await octokit.pulls.create({
+          owner,
+          repo,
+          head: branch,
+          base: baseBranch,
+          title: text.title,
+          body: text.body,
+        })
+      ).data;
+    } catch (err) {
+      if (!isPrAlreadyExists(err)) throw err;
+      // A PR for this branch opened after the lookup above (or the lookup
+      // missed it). It is someone's live PR: put a branch this run reset back
+      // where it was, never delete the branch (that would close the PR), and
+      // report the existing PR instead of a failure.
+      if (moved === "reset") await undoBranch();
+      moved = undefined;
+      result.status = "skipped_existing_pr";
+      const existing = await findOpenPr(octokit, where, branch);
+      if (existing) {
+        result.url = existing.html_url;
+        result.superseded = await sweep({ number: existing.number, url: existing.html_url });
+      } else {
+        console.warn(`[${group.repo}] GitHub reports an open PR for ${branch} but it could not be listed`);
+      }
+      return result;
+    }
+    result.status = "opened";
+    result.url = pr.html_url;
+
+    // The PR's author (the token's owner) can't review it: GitHub rejects the
+    // whole request with a 422, so ask only everyone else.
+    const author = pr.user?.login?.toLowerCase();
+    const reviewers = [...new Set(group.entries.flatMap((e) => e.reviewers))].filter(
+      (r) => r.toLowerCase() !== author,
+    );
     if (reviewers.length) {
       await octokit.pulls
-        .requestReviewers({ owner, repo, pull_number: pr.data.number, reviewers })
+        .requestReviewers({ owner, repo, pull_number: pr.number, reviewers })
         .catch((err) => {
           console.warn(`[${group.repo}] requestReviewers failed: ${messageOf(err)}`);
         });
     }
 
-    result.superseded = await closeSuperseded(
-      octokit,
-      owner,
-      repo,
-      group,
-      branch,
-      { number: pr.data.number, url: pr.data.html_url },
-      target,
-    ).catch((err) => {
-      console.warn(`[${group.repo}] superseded-PR sweep failed: ${messageOf(err)}`);
-      return [];
-    });
+    result.superseded = await sweep({ number: pr.number, url: pr.html_url });
     return result;
   } catch (err) {
-    if (result.status !== "opened") {
-      await octokit.git
-        .deleteRef({ owner, repo, ref: `heads/${branch}` })
-        .catch((cleanupErr) => {
-          console.warn(
-            `[${group.repo}] could not delete ${branch} after a failed bump: ${messageOf(cleanupErr)}`,
-          );
-        });
-    }
+    if (result.status !== "opened") await undoBranch();
     throw err;
+  }
+}
+
+// GitHub's 422 for a second PR on the same head. Octokit folds the
+// validation errors into the message; check the raw errors too.
+function isPrAlreadyExists(err: unknown): boolean {
+  if (statusOf(err) !== 422) return false;
+  const data = (err as { response?: { data?: unknown } }).response?.data;
+  return /pull request already exists/i.test(`${messageOf(err)} ${JSON.stringify(data ?? "")}`);
+}
+
+async function findOpenPr(
+  octokit: Octokit,
+  where: RepoRef,
+  branch: string,
+): Promise<ListedPr | undefined> {
+  try {
+    const { owner, repo } = where;
+    return (
+      await octokit.pulls.list({ owner, repo, head: `${owner}:${branch}`, state: "open" })
+    ).data.find((p) => headIsIn(p, where) && p.head.ref === branch);
+  } catch (err) {
+    console.warn(`[${where.fullName}] could not list PRs for ${branch}: ${messageOf(err)}`);
+    return undefined;
   }
 }
 

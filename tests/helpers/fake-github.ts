@@ -3,6 +3,12 @@ import type { Octokit } from "@octokit/rest";
 // A small in-memory GitHub covering exactly the REST calls pr-bumper.ts and
 // alerts.ts make: repos, the git data API (blobs, trees, commits, refs),
 // pulls and issues. Enough state to assert what a bump run leaves behind.
+//
+// It is as strict as GitHub where a mistake would only show up on the first
+// real run: a renamed repo resolves only for reads (writes must use the
+// canonical name repos.get returns), the `owner:branch` head filter matches
+// the owner exactly, a second PR on the same head is a 422, and the PR's
+// author can't be requested as a reviewer.
 
 type Mode = "100644" | "100755" | "040000";
 interface Entry {
@@ -25,7 +31,9 @@ export interface FakePr {
   body: string;
   base: string;
   head: { ref: string; repo: { full_name: string } | null };
+  user: { login: string };
   reviewers: string[];
+  comments?: string[];
 }
 export interface FakeIssue {
   number: number;
@@ -50,22 +58,55 @@ interface Repo {
 const httpError = (status: number, message: string) =>
   Object.assign(new Error(message), { status });
 
+// A 422 shaped like Octokit's RequestError: the validation errors are folded
+// into the message and kept on response.data.
+const validationFailed = (error: Record<string, string>) =>
+  Object.assign(new Error(`Validation Failed: ${JSON.stringify(error)}`), {
+    status: 422,
+    response: { data: { message: "Validation Failed", errors: [error] } },
+  });
+
 export class FakeGitHub {
   private repos = new Map<string, Repo>();
+  // Old lower-cased full name -> current one, as after a rename or transfer.
+  private redirects = new Map<string, string>();
   private seq = 0;
   private next = 1;
-  // Test hook: make pulls.create throw once.
+  // The token's owner: the author of every PR the bumper opens.
+  author = "JMill";
+  // Test hooks: make pulls.create throw once; run something just before it
+  // (to simulate a PR opened between the bumper's lookup and its create).
   failNextPullCreate: Error | null = null;
+  beforePullCreate: (() => void) | null = null;
+  // Test hook: head-filtered pulls.list returns nothing, as if GitHub's
+  // `owner:branch` matching missed the PR.
+  headFilterMisses = false;
   calls: string[] = [];
 
   private sha(): string {
     return (++this.seq).toString(16).padStart(40, "0");
   }
 
-  private repo(owner: string, repo: string): Repo {
-    const r = this.repos.get(`${owner}/${repo}`.toLowerCase());
+  // `follow`: GET requests follow GitHub's redirect for a renamed or
+  // transferred repo. Writes don't here, so code under test must use the
+  // canonical name.
+  private repo(owner: string, repo: string, follow = false): Repo {
+    let key = `${owner}/${repo}`.toLowerCase();
+    if (follow) key = this.redirects.get(key) ?? key;
+    const r = this.repos.get(key);
     if (!r) throw httpError(404, `Not Found: ${owner}/${repo}`);
     return r;
+  }
+
+  renameRepo(from: string, to: string): void {
+    const r = this.repos.get(from.toLowerCase())!;
+    this.repos.delete(from.toLowerCase());
+    r.fullName = to;
+    for (const pr of r.pulls) {
+      if (pr.head.repo?.full_name === from) pr.head.repo = { full_name: to };
+    }
+    this.repos.set(to.toLowerCase(), r);
+    this.redirects.set(from.toLowerCase(), to.toLowerCase());
   }
 
   addRepo(
@@ -166,27 +207,48 @@ export class FakeGitHub {
     return this.repos.get(fullName.toLowerCase())!.issues;
   }
 
-  // Seed a PR as if an earlier run (or a human) had opened it.
+  // Seed a PR as if an earlier run (or a human) had opened it. `headRepo`
+  // seeds a PR from a fork, whose branch lives outside this repo.
   addPull(
     fullName: string,
-    pr: { ref: string; state?: "open" | "closed"; merged?: boolean; createBranch?: boolean },
+    pr: {
+      ref: string;
+      state?: "open" | "closed";
+      merged?: boolean;
+      createBranch?: boolean;
+      headRepo?: string;
+      body?: string;
+    },
   ): FakePr {
     const r = this.repos.get(fullName.toLowerCase())!;
-    if (pr.createBranch ?? true) r.refs.set(pr.ref, r.refs.get(r.defaultBranch)!);
+    const fork = pr.headRepo !== undefined && pr.headRepo !== r.fullName;
+    if (!fork && (pr.createBranch ?? true)) {
+      r.refs.set(pr.ref, this.commitOnDefault(r, `human work on ${pr.ref}`));
+    }
     const number = this.next++;
     const created: FakePr = {
       number,
       state: pr.state ?? "open",
       merged_at: pr.merged ? "2026-09-01T00:00:00Z" : null,
-      html_url: `https://github.com/${fullName}/pull/${number}`,
+      html_url: `https://github.com/${r.fullName}/pull/${number}`,
       title: `seeded ${pr.ref}`,
-      body: "",
+      body: pr.body ?? "",
       base: r.defaultBranch,
-      head: { ref: pr.ref, repo: { full_name: fullName } },
+      head: { ref: pr.ref, repo: { full_name: pr.headRepo ?? r.fullName } },
+      user: { login: "someone" },
       reviewers: [],
     };
     r.pulls.push(created);
     return created;
+  }
+
+  // A commit on top of the default branch, standing in for work pushed to a
+  // PR branch, so tests can tell whether that work survived a run.
+  private commitOnDefault(r: Repo, message: string): string {
+    const head = r.refs.get(r.defaultBranch)!;
+    const sha = this.sha();
+    r.commits.set(sha, { ...r.commits.get(head)!, parents: [head], message });
+    return sha;
   }
 
   // Octokit surface --------------------------------------------------------
@@ -198,28 +260,32 @@ export class FakeGitHub {
     repos: {
       get: async ({ owner, repo }: { owner: string; repo: string }) => {
         this.calls.push("repos.get");
-        return { data: { default_branch: this.repo(owner, repo).defaultBranch } };
+        const r = this.repo(owner, repo, true);
+        const [login, name] = r.fullName.split("/");
+        return {
+          data: { default_branch: r.defaultBranch, full_name: r.fullName, name, owner: { login } },
+        };
       },
     },
 
     git: {
       getRef: async ({ owner, repo, ref }: { owner: string; repo: string; ref: string }) => {
-        const sha = this.repo(owner, repo).refs.get(ref.replace(/^heads\//, ""));
+        const sha = this.repo(owner, repo, true).refs.get(ref.replace(/^heads\//, ""));
         if (!sha) throw httpError(404, "Not Found");
         return { data: { object: { sha } } };
       },
       getCommit: async (p: { owner: string; repo: string; commit_sha: string }) => {
-        const c = this.repo(p.owner, p.repo).commits.get(p.commit_sha);
+        const c = this.repo(p.owner, p.repo, true).commits.get(p.commit_sha);
         if (!c) throw httpError(404, "Not Found");
         return { data: { tree: { sha: c.tree } } };
       },
       getTree: async (p: { owner: string; repo: string; tree_sha: string }) => {
-        const t = this.repo(p.owner, p.repo).trees.get(p.tree_sha);
+        const t = this.repo(p.owner, p.repo, true).trees.get(p.tree_sha);
         if (!t) throw httpError(404, "Not Found");
         return { data: { tree: t.map((e) => ({ ...e })) } };
       },
       getBlob: async (p: { owner: string; repo: string; file_sha: string }) => {
-        const b = this.repo(p.owner, p.repo).blobs.get(p.file_sha);
+        const b = this.repo(p.owner, p.repo, true).blobs.get(p.file_sha);
         if (b === undefined) throw httpError(404, "Not Found");
         return { data: { content: b, encoding: "base64" } };
       },
@@ -284,15 +350,16 @@ export class FakeGitHub {
 
     pulls: {
       list: async (p: { owner: string; repo: string; head?: string; state?: string }) => {
-        const r = this.repo(p.owner, p.repo);
+        const r = this.repo(p.owner, p.repo, true);
         const data = r.pulls.filter((pr) => {
           if (p.state && p.state !== "all" && pr.state !== p.state) return false;
           if (p.head) {
+            if (this.headFilterMisses) return false;
+            // The label is `<current owner login>:<ref>`: an old owner name
+            // (or different casing of it) matches nothing.
             const [headOwner, ref] = p.head.split(":");
             if (pr.head.ref !== ref) return false;
-            if (!pr.head.repo?.full_name.toLowerCase().startsWith(`${headOwner.toLowerCase()}/`)) {
-              return false;
-            }
+            if (pr.head.repo?.full_name.split("/")[0] !== headOwner) return false;
           }
           return true;
         });
@@ -307,13 +374,30 @@ export class FakeGitHub {
         body: string;
       }) => {
         this.calls.push("pulls.create");
+        this.beforePullCreate?.();
+        this.beforePullCreate = null;
         if (this.failNextPullCreate) {
           const err = this.failNextPullCreate;
           this.failNextPullCreate = null;
           throw err;
         }
         const r = this.repo(p.owner, p.repo);
-        if (!r.refs.has(p.head)) throw httpError(422, "head does not exist");
+        const [login] = r.fullName.split("/");
+        const head = p.head.includes(":") ? p.head : `${login}:${p.head}`;
+        const [headOwner, ref] = head.split(":");
+        if (headOwner !== login || !r.refs.has(ref)) {
+          throw validationFailed({ field: "head", code: "invalid", resource: "PullRequest" });
+        }
+        const dup = r.pulls.find(
+          (x) => x.state === "open" && x.head.ref === ref && x.head.repo?.full_name === r.fullName,
+        );
+        if (dup) {
+          throw validationFailed({
+            resource: "PullRequest",
+            code: "custom",
+            message: `A pull request already exists for ${head}.`,
+          });
+        }
         const number = this.next++;
         const pr: FakePr = {
           number,
@@ -323,20 +407,33 @@ export class FakeGitHub {
           title: p.title,
           body: p.body,
           base: p.base,
-          head: { ref: p.head, repo: { full_name: r.fullName } },
+          head: { ref, repo: { full_name: r.fullName } },
+          user: { login: this.author },
           reviewers: [],
         };
         r.pulls.push(pr);
-        return { data: { number, html_url: pr.html_url } };
+        return { data: { number, html_url: pr.html_url, user: pr.user } };
       },
-      update: async (p: { owner: string; repo: string; pull_number: number; state: "open" | "closed" }) => {
+      update: async (p: {
+        owner: string;
+        repo: string;
+        pull_number: number;
+        state?: "open" | "closed";
+        body?: string;
+      }) => {
         this.calls.push("pulls.update");
         const pr = this.repo(p.owner, p.repo).pulls.find((x) => x.number === p.pull_number)!;
-        pr.state = p.state;
+        if (p.state) pr.state = p.state;
+        if (p.body !== undefined) pr.body = p.body;
         return { data: {} };
       },
       requestReviewers: async (p: { owner: string; repo: string; pull_number: number; reviewers: string[] }) => {
+        this.calls.push("pulls.requestReviewers");
         const pr = this.repo(p.owner, p.repo).pulls.find((x) => x.number === p.pull_number)!;
+        // GitHub fails the whole request, not just the author's entry.
+        if (p.reviewers.some((r) => r.toLowerCase() === pr.user.login.toLowerCase())) {
+          throw httpError(422, "Review cannot be requested from pull request author.");
+        }
         pr.reviewers.push(...p.reviewers);
         return { data: {} };
       },
@@ -351,13 +448,12 @@ export class FakeGitHub {
         else {
           const pr = r.pulls.find((x) => x.number === p.issue_number);
           if (!pr) throw httpError(404, "Not Found");
-          (pr as FakePr & { comments?: string[] }).comments ??= [];
-          (pr as FakePr & { comments?: string[] }).comments!.push(p.body);
+          (pr.comments ??= []).push(p.body);
         }
         return { data: {} };
       },
       listForRepo: async (p: { owner: string; repo: string; state?: string; labels?: string }) => {
-        const r = this.repo(p.owner, p.repo);
+        const r = this.repo(p.owner, p.repo, true);
         const data = r.issues
           .filter((i) => !p.state || p.state === "all" || i.state === p.state)
           .filter((i) => !p.labels || p.labels.split(",").every((l) => i.labels.includes(l)))
@@ -365,7 +461,7 @@ export class FakeGitHub {
         return { data };
       },
       listComments: async (p: { owner: string; repo: string; issue_number: number }) => {
-        const issue = this.repo(p.owner, p.repo).issues.find((i) => i.number === p.issue_number)!;
+        const issue = this.repo(p.owner, p.repo, true).issues.find((i) => i.number === p.issue_number)!;
         return { data: issue.comments.map((body) => ({ body })) };
       },
       create: async (p: { owner: string; repo: string; title: string; body: string; labels?: string[] }) => {
