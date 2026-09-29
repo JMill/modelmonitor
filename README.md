@@ -88,7 +88,9 @@ so a v1 manifest without them is still valid. `max_input_tokens`,
 the capability tree come straight from the Models API (`capabilities` is
 passed through unmodified; its leaves are `{ "supported": boolean }`), and an
 alias is published only when `models.retrieve(alias)` resolves back to that
-exact dated ID. `docs/schema.json` and the zod schema in `src/types.ts`
+exact dated ID. `"aliases": []` is a definite "none" (the undated name is
+another model, or doesn't exist); a dated model without the field wasn't
+checked, or its check failed. `docs/schema.json` and the zod schema in `src/types.ts`
 describe the same shape, and a test fails if they drift.
 
 Family keys are stable once published:
@@ -225,8 +227,8 @@ on the repo's CODEOWNERS or notifications.
 
 A pinned ID is current, and the file is left alone, when it equals
 `recommended`, is one of the recommended model's published `aliases`, or,
-for a manifest without alias data, is the undated form of a dated
-`recommended` ID. So `claude-haiku-4-5` is never "bumped" to
+when the manifest has no alias data for it (absent, not `[]`), is the
+undated form of a dated `recommended` ID. So `claude-haiku-4-5` is never "bumped" to
 `claude-haiku-4-5-20251001`, which is the same model.
 
 ### One PR per repo and family

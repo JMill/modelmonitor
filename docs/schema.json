@@ -69,7 +69,7 @@
         },
         "aliases": {
           "type": "array",
-          "description": "Undated aliases verified to resolve to this dated ID (Anthropic only).",
+          "description": "Undated aliases verified to resolve to this dated ID (Anthropic only). An empty array means the undated name was checked and is another model or does not exist; absent means unknown (not checked, or the check failed).",
           "items": { "type": "string" }
         }
       }

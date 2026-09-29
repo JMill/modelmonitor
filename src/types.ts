@@ -24,7 +24,9 @@ export const ModelInfo = z.object({
   // published without a code change. Leaves are `{ supported: boolean }`.
   capabilities: z.record(z.string(), z.unknown()).nullable().optional(),
   // Undated aliases verified to resolve to this dated ID (Anthropic only),
-  // e.g. claude-haiku-4-5 for claude-haiku-4-5-20251001.
+  // e.g. claude-haiku-4-5 for claude-haiku-4-5-20251001. An empty array is a
+  // definite "none": the undated name was checked and is another model or
+  // doesn't exist. Absent means unknown (not checked, or the check failed).
   aliases: z.array(z.string()).optional(),
 });
 export type ModelInfo = z.infer<typeof ModelInfo>;

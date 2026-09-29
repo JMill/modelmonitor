@@ -439,6 +439,41 @@ describe("bumpAll against a GitHub fake", () => {
     expect(gh.readFile("JMill/py", later.branch!, "src/models.ts")).toContain("'claude-haiku-5'");
   });
 
+  it("treats an undated pin as another model once the manifest says it is not an alias", async () => {
+    // The refresh checked claude-sonnet-4-5 and found it routes to another
+    // snapshot, so it is not the recommended model and must be bumped.
+    const checked = Manifest.parse({
+      ...manifest,
+      providers: {
+        anthropic: {
+          families: {
+            sonnet: {
+              recommended: "claude-sonnet-4-5-20250929",
+              all: [model("claude-sonnet-4-5-20250929", { aliases: [] })],
+            },
+          },
+        },
+      },
+    });
+    gh.addRepo("JMill/py", {
+      "src/models.ts": "export const M = {\n  sonnet: 'claude-sonnet-4-5',\n};\n",
+    });
+    const sonnet = (template: string) =>
+      entry({
+        repo: "JMill/py",
+        file: "src/models.ts",
+        family: "anthropic.sonnet",
+        pattern: keyAnchored("sonnet").pattern,
+        replacement_template: template,
+      });
+
+    const [pinned] = await bumpAll(gh.asOctokit(), [sonnet("$1{recommended}$2")], checked, undefined);
+    expect(pinned.status).toBe("opened");
+    expect(gh.readFile("JMill/py", pinned.branch!, "src/models.ts")).toContain(
+      "sonnet: 'claude-sonnet-4-5-20250929',",
+    );
+  });
+
   it("does not hold back a pin that is already current when alias data is missing", async () => {
     const [result] = await bumpAll(
       gh.asOctokit(),

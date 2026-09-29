@@ -33,9 +33,14 @@ const DATE_SUFFIX_RE = /-\d{8}$/;
 // (claude-haiku-4-5-20251001) while the documented, stable name is the
 // undated alias (claude-haiku-4-5). Nothing in the list links the two, so the
 // alias is derived by stripping the date and confirmed with models.retrieve:
-// it counts only if the API resolves it back to this exact dated ID. Any
-// error (a 404 for a date-only model, a transient failure) just means no
-// alias is published this run; it never fails the refresh.
+// it counts only if the API resolves it back to this exact dated ID.
+//
+// A definite answer is recorded either way. An empty list means the undated
+// name was checked and is not this model: it resolves to a different
+// snapshot, or it doesn't exist (404). Consumers must not fall back to
+// treating the undated name as equivalent then. Any other error (a transient
+// failure) leaves the ID out of the map, meaning "unknown"; it never fails
+// the refresh.
 export async function deriveAliases(
   client: AnthropicModelsClient,
   ids: string[],
@@ -46,13 +51,27 @@ export async function deriveAliases(
     const candidate = id.replace(DATE_SUFFIX_RE, "");
     try {
       const resolved = await client.models.retrieve(candidate);
-      if (resolved.id === id) out.set(id, [candidate]);
+      out.set(id, resolved.id === id ? [candidate] : []);
     } catch (err) {
+      if (isNotFound(err)) {
+        out.set(id, []);
+        continue;
+      }
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`[anthropic] alias check for ${candidate} failed: ${msg}`);
     }
   }
   return out;
+}
+
+// The SDK's NotFoundError carries `status: 404`; checked structurally so a
+// stub client (or another SDK major) is judged the same way.
+function isNotFound(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { status?: unknown }).status === 404
+  );
 }
 
 export async function fetchModels(

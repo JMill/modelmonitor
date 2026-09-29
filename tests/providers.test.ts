@@ -154,15 +154,22 @@ const apiModel = (
 });
 
 // A stub of the SDK's models resource: `list` yields `listed`; `retrieve`
-// resolves aliases through `resolves` and fails for anything else.
+// resolves aliases through `resolves`, fails transiently (a 529) for IDs in
+// `flaky`, and throws a 404 like the SDK's NotFoundError for anything else.
 function stubClient(
   listed: Anthropic.ModelInfo[],
   resolves: Record<string, string>,
+  flaky: string[] = [],
 ): AnthropicModelsClient & { retrieve: ReturnType<typeof vi.fn> } {
   const byId = new Map(listed.map((m) => [m.id, m]));
   const retrieve = vi.fn(async (id: string) => {
+    if (flaky.includes(id)) {
+      throw Object.assign(new Error(`529 overloaded: ${id}`), { status: 529 });
+    }
     const target = resolves[id] ?? (byId.has(id) ? id : undefined);
-    if (!target) throw new Error(`404 model not found: ${id}`);
+    if (!target) {
+      throw Object.assign(new Error(`404 model not found: ${id}`), { status: 404 });
+    }
     return byId.get(target) ?? apiModel(target, "2026-01-01T00:00:00Z");
   });
   return {
@@ -230,15 +237,18 @@ describe("anthropic fetchModels", () => {
     expect(haiku.recommended_alias).toBe("claude-haiku-4-5");
     expect(haiku.all[0].aliases).toEqual(["claude-haiku-4-5"]);
 
-    expect(snapshot.families.sonnet.all[0].aliases).toBeUndefined();
+    // A definite "no": the undated name is another snapshot. The empty list
+    // stops consumers from treating claude-sonnet-4-5 as this model.
+    expect(snapshot.families.sonnet.all[0].aliases).toEqual([]);
     expect(snapshot.families.sonnet.recommended_alias).toBeUndefined();
 
-    // The failed lookup is tolerated: no alias, and the refresh still succeeds.
+    // A 404 is a definite "no" too, and the refresh still succeeds.
     const opus = snapshot.families.opus;
     expect(opus.recommended).toBe("claude-opus-5-5");
     expect(opus.recommended_alias).toBeUndefined();
     expect(opus.all.find((m) => m.id === "claude-opus-4-5-20251101")?.aliases)
-      .toBeUndefined();
+      .toEqual([]);
+    expect(ProviderSnapshot.safeParse(snapshot).success).toBe(true);
 
     // Only dated IDs are looked up.
     expect(client.retrieve.mock.calls.map(([id]) => id).sort()).toEqual([
@@ -246,6 +256,17 @@ describe("anthropic fetchModels", () => {
       "claude-opus-4-5",
       "claude-sonnet-4-5",
     ]);
+  });
+
+  it("leaves aliases unknown, not empty, when the lookup fails transiently", async () => {
+    const client = stubClient(
+      [apiModel("claude-haiku-4-5-20251001", "2025-10-15T00:00:00Z")],
+      { "claude-haiku-4-5": "claude-haiku-4-5-20251001" },
+      ["claude-haiku-4-5"],
+    );
+    const { snapshot } = await fetchAnthropic("unused", client);
+    expect(snapshot.families.haiku.all[0].aliases).toBeUndefined();
+    expect(snapshot.families.haiku.recommended_alias).toBeUndefined();
   });
 
   it("gives an undated recommended model no recommended_alias", async () => {
