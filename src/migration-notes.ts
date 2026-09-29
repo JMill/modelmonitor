@@ -5,14 +5,16 @@
 // production. The Models API capability tree can't express those rules (it
 // has no field for "sampling params rejected" or "forced tool_choice
 // rejected"), so they live here as a hand-maintained table keyed on the
-// target model's family and version, checked against the migration guide:
-// https://platform.claude.com/docs/en/about-claude/models/migration-guide.md
+// target model's family and version, checked against the migration guide
+// (raw markdown for agents: the same URL with a `.md` suffix).
 //
 // When a new model changes the request surface, add a rule below and a case
 // to tests/migration-notes.test.ts.
 
+// Rendered into every Claude bump PR for human reviewers, so it is the HTML
+// docs page, not the `.md` source.
 export const MIGRATION_GUIDE_URL =
-  "https://platform.claude.com/docs/en/about-claude/models/migration-guide.md";
+  "https://platform.claude.com/docs/en/about-claude/models/migration-guide";
 
 export interface ClaudeVersion {
   family: string;

@@ -148,7 +148,6 @@ consumers:
     family: anthropic.sonnet
     pattern: '(\bsonnet:\s*["''])claude-sonnet-[a-z0-9-]+(["''])'
     replacement_template: '$1{recommended}$2'
-    reviewers: [JMill]
   - repo: JMill/example
     file: src/models.ts
     family: anthropic.haiku
@@ -185,11 +184,18 @@ string, double every backslash instead.
 | `flags`                | no       | Extra regex flags, any of `i`, `m`, `s`, `u`                                                       |
 | `replacement_template` | yes      | Replacement for each match; must contain `{recommended}` or `{recommended_alias}`                  |
 | `branch_prefix`        | no       | Branch namespace, default `chore/model-bump`                                                       |
-| `reviewers`            | no       | GitHub usernames to request review from                                                            |
+| `reviewers`            | no       | GitHub usernames to request review from; never the `BUMP_PR_TOKEN` owner (see below)               |
 | `title_template`       | no       | PR title; `{family}`, `{recommended}`, `{from}` and `{to}` are substituted                         |
 | `commit_template`      | no       | Commit message, same placeholders. Use it for repo rules such as a `[deploy]` tag                  |
 
 (`repo`, `file`, `family`) must be unique across the registry.
+
+The account that owns `BUMP_PR_TOKEN` authors every bump PR, and GitHub
+won't request a review from a PR's author: it rejects the whole request
+with a 422, so nobody else would be asked either. modelmonitor drops the
+author from `reviewers` before asking, but don't list that account; name
+the teammates who should review instead, or leave `reviewers` out and rely
+on the repo's CODEOWNERS or notifications.
 
 ### Placeholders and capture groups
 

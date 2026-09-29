@@ -19,7 +19,9 @@
 #                         falling back to {recommended}); $1 / $<name> expand
 #                         the pattern's capture groups.
 #   branch_prefix:        PR branch namespace (default: chore/model-bump)
-#   reviewers:            optional GitHub usernames to request review from
+#   reviewers:            optional GitHub usernames to request review from.
+#                         Not the BUMP_PR_TOKEN owner: that account authors
+#                         the PR and GitHub won't let it review its own PR.
 #   title_template:       optional PR title; {family} {recommended} {from} {to}
 #   commit_template:      optional commit message; same placeholders
 #
@@ -36,7 +38,6 @@ consumers: []
 #    family: anthropic.sonnet
 #    pattern: '(\bsonnet:\s*["''])claude-sonnet-[a-z0-9-]+(["''])'
 #    replacement_template: '$1{recommended}$2'
-#    reviewers: [JMill]
 #
 #  # Haiku is listed under a dated ID; write the undated alias instead so the
 #  # pin doesn't churn to claude-haiku-4-5-20251001.
