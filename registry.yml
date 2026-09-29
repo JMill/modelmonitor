@@ -47,7 +47,7 @@ consumers:
   # book engine, Python scripts, standalone Flare). Commit subjects carry
   # [deploy]: tee-site builds Vercel previews only for commits that ask.
   #
-  # Opus: canonical + book engine.
+  # Opus: canonical + book engine, Python, Flare.
   - repo: JMill/tee-site
     file: packages/shared-types/src/models.ts
     family: anthropic.opus
@@ -58,6 +58,24 @@ consumers:
 
   - repo: JMill/tee-site
     file: apps/book-engine/src/claude-models.ts
+    family: anthropic.opus
+    pattern: '(\bopus:\s*["''])claude-opus-[a-z0-9-]+(["''])'
+    replacement_template: '$1{recommended}$2'
+    branch_prefix: chore/model-bump
+    commit_template: 'Upgrade Claude Opus calls to {to} [deploy]'
+
+  - repo: JMill/tee-site
+    file: scripts/claude_models.py
+    family: anthropic.opus
+    pattern: '^(OPUS\s*=\s*["''])claude-opus-[a-z0-9-]+(["''])'
+    flags: m
+    replacement_template: '$1{recommended}$2'
+    branch_prefix: chore/model-bump
+    commit_template: 'Upgrade Claude Opus calls to {to} [deploy]'
+
+  # Flare/src/generate/claude.ts: the ids Flare validates config.json against.
+  - repo: JMill/tee-site
+    file: Flare/src/generate/claude.ts
     family: anthropic.opus
     pattern: '(\bopus:\s*["''])claude-opus-[a-z0-9-]+(["''])'
     replacement_template: '$1{recommended}$2'
@@ -106,6 +124,14 @@ consumers:
     branch_prefix: chore/model-bump
     commit_template: 'Upgrade Claude Sonnet calls to {to} [deploy]'
 
+  - repo: JMill/tee-site
+    file: Flare/src/generate/claude.ts
+    family: anthropic.sonnet
+    pattern: '(\bsonnet:\s*["''])claude-sonnet-[a-z0-9-]+(["''])'
+    replacement_template: '$1{recommended}$2'
+    branch_prefix: chore/model-bump
+    commit_template: 'Upgrade Claude Sonnet calls to {to} [deploy]'
+
   # Flare/config.json: only generation.model, the file's one model ID.
   - repo: JMill/tee-site
     file: Flare/config.json
@@ -115,7 +141,7 @@ consumers:
     branch_prefix: chore/model-bump
     commit_template: 'Upgrade Claude Sonnet calls to {to} [deploy]'
 
-  # Haiku: canonical + Effector ID.
+  # Haiku: canonical + Effector ID, Python, Flare.
   - repo: JMill/tee-site
     file: packages/shared-types/src/models.ts
     family: anthropic.haiku
@@ -126,6 +152,23 @@ consumers:
 
   - repo: JMill/tee-site
     file: apps/id/src/lib/claude-models.ts
+    family: anthropic.haiku
+    pattern: '(\bhaiku:\s*["''])claude-haiku-[a-z0-9-]+(["''])'
+    replacement_template: '$1{recommended_alias}$2'
+    branch_prefix: chore/model-bump
+    commit_template: 'Upgrade Claude Haiku calls to {to} [deploy]'
+
+  - repo: JMill/tee-site
+    file: scripts/claude_models.py
+    family: anthropic.haiku
+    pattern: '^(HAIKU\s*=\s*["''])claude-haiku-[a-z0-9-]+(["''])'
+    flags: m
+    replacement_template: '$1{recommended_alias}$2'
+    branch_prefix: chore/model-bump
+    commit_template: 'Upgrade Claude Haiku calls to {to} [deploy]'
+
+  - repo: JMill/tee-site
+    file: Flare/src/generate/claude.ts
     family: anthropic.haiku
     pattern: '(\bhaiku:\s*["''])claude-haiku-[a-z0-9-]+(["''])'
     replacement_template: '$1{recommended_alias}$2'
