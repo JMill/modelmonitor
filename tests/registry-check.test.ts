@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
+import { readFile } from "node:fs/promises";
+import yaml from "js-yaml";
+import { MANIFEST_PATH, readManifest } from "../src/manifest.ts";
 import { checkRegistry } from "../src/registry-check.ts";
-import { Manifest } from "../src/types.ts";
+import { Manifest, Registry } from "../src/types.ts";
 
 const manifest = Manifest.parse({
   version: "1",
@@ -171,5 +174,28 @@ describe("checkRegistry", () => {
       "registry.yml: 1 consumer entry",
       "consumers[0] JMill/app src/none.ts anthropic.sonnet -> claude-sonnet-5",
     ]);
+  });
+
+  it("passes the committed registry.yml without warnings", async () => {
+    const rawYaml = await readFile(new URL("../registry.yml", import.meta.url), "utf8");
+    const r = await checkRegistry({
+      rawYaml,
+      manifest: await readManifest(MANIFEST_PATH),
+      locals: new Map(),
+      readLocal: async () => null,
+    });
+    expect(r.errors).toEqual([]);
+    expect(r.warnings).toEqual([]);
+  });
+
+  it("keeps each enrolled repo on one branch_prefix, so a family bumps every copy in one PR", async () => {
+    const raw = await readFile(new URL("../registry.yml", import.meta.url), "utf8");
+    const { consumers } = Registry.parse(yaml.load(raw));
+    const prefixes = new Map<string, Set<string>>();
+    for (const e of consumers) {
+      const key = e.repo.toLowerCase();
+      prefixes.set(key, (prefixes.get(key) ?? new Set()).add(e.branch_prefix));
+    }
+    for (const [repo, set] of prefixes) expect([...set], repo).toHaveLength(1);
   });
 });

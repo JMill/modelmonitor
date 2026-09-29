@@ -306,6 +306,34 @@ reports, per entry, the match count (zero fails the check), the pinned
 IDs, and whether a bump would change the file today, using the bumper's own
 rules.
 
+### Enrolled consumers
+
+Each repo keeps one canonical model-ID file, plus mirrors where a runtime
+boundary forces a copy. Every file its drift or parity test holds equal is
+enrolled under one `branch_prefix`, so a family's PR bumps all of that
+repo's copies at once and the test stays green: at most one PR per repo and
+family.
+
+| Repo                    | File                                               | Families            |
+| ----------------------- | -------------------------------------------------- | ------------------- |
+| `JMill/tee-site`        | `packages/shared-types/src/models.ts` (canonical)  | opus, sonnet, haiku |
+| `JMill/tee-site`        | `apps/book-engine/src/claude-models.ts`            | opus, sonnet        |
+| `JMill/tee-site`        | `apps/sigline/src/lib/claude-models.ts`            | sonnet              |
+| `JMill/tee-site`        | `apps/conduit/src/lib/claude-models.ts`            | sonnet              |
+| `JMill/tee-site`        | `apps/id/src/lib/claude-models.ts`                 | haiku               |
+| `JMill/tee-site`        | `scripts/claude_models.py`                         | sonnet              |
+| `JMill/tee-site`        | `Flare/config.json` (`generation.model`)           | sonnet              |
+| `JMill/UAPNOW`          | `agents/shared/src/models.ts` (canonical)          | opus, sonnet, haiku |
+| `JMill/UAPNOW`          | `agents/ingest/src/uapnow_ingest/claude_models.py` | haiku               |
+| `JMill/portfolio-sites` | `scripts/_shared/models.ts` (canonical)            | sonnet              |
+
+Haiku entries write the undated alias (`claude-haiku-4-5`). tee-site's
+commit subjects end in `[deploy]`, since it builds Vercel previews only for
+commits that ask. The tests that hold copies equal are tee-site's
+`scripts/__tests__/claude-models-mirrors.test.ts` and UAPNOW's
+`agents/shared/tests/claude-models-python-parity.test.ts`; portfolio-sites'
+`tests/unit/claude-models.test.ts` checks the shape of its one line.
+
 ## Alerts
 
 When a previously-recommended model disappears with no successor, a model

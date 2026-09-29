@@ -15,9 +15,9 @@
 #                         comments, docs, test mocks or other families.
 #   flags:                optional extra regex flags: any of i, m, s, u
 #   replacement_template: what each match becomes. Must contain {recommended}
-#                         or {recommended_alias} (the verified undated alias,
-#                         falling back to {recommended}); $1 / $<name> expand
-#                         the pattern's capture groups.
+#                         or {recommended_alias} (the verified undated alias;
+#                         the bump waits a run if a dated ID has none yet);
+#                         $1 / $<name> expand the pattern's capture groups.
 #   branch_prefix:        PR branch namespace (default: chore/model-bump)
 #   reviewers:            optional GitHub usernames to request review from.
 #                         Not the BUMP_PR_TOKEN owner: that account authors
@@ -31,18 +31,145 @@
 # YAML quoting: inside single quotes a backslash is literal (write \b, \s as
 # is) but a single quote must be doubled (''). A lone ' ends the string and
 # breaks the whole file, which stops every consumer's bump.
-
-consumers: []
-#  - repo: JMill/portfolio-sites
-#    file: scripts/_shared/models.ts
-#    family: anthropic.sonnet
-#    pattern: '(\bsonnet:\s*["''])claude-sonnet-[a-z0-9-]+(["''])'
-#    replacement_template: '$1{recommended}$2'
 #
-#  # Haiku is listed under a dated ID; write the undated alias instead so the
-#  # pin doesn't churn to claude-haiku-4-5-20251001.
-#  - repo: JMill/example
-#    file: src/models.ts
-#    family: anthropic.haiku
-#    pattern: '(\bhaiku:\s*["''])claude-haiku-[a-z0-9-]+(["''])'
-#    replacement_template: '$1{recommended_alias}$2'
+# Enrolled files are the ones each consumer's drift or parity test compares:
+# a family's canonical line and every mirror of it share one branch_prefix,
+# so one PR bumps them all and the test stays green. Patterns anchor on the
+# object key (TypeScript), a line-start constant (Python, flags: m) or the
+# JSON key path, matching exactly one line per file. Haiku writes the undated
+# alias. No reviewers are listed: the BUMP_PR_TOKEN owner authors these PRs
+# and can't also review them.
+
+consumers:
+  # JMill/tee-site: canonical packages/shared-types/src/models.ts plus the
+  # runtime mirrors that scripts/__tests__/claude-models-mirrors.test.ts holds
+  # equal to it (apps that redeploy only on their own directory, the compiled
+  # book engine, Python scripts, standalone Flare). Commit subjects carry
+  # [deploy]: tee-site builds Vercel previews only for commits that ask.
+  #
+  # Opus: canonical + book engine.
+  - repo: JMill/tee-site
+    file: packages/shared-types/src/models.ts
+    family: anthropic.opus
+    pattern: '(\bopus:\s*["''])claude-opus-[a-z0-9-]+(["''])'
+    replacement_template: '$1{recommended}$2'
+    branch_prefix: chore/model-bump
+    commit_template: 'Upgrade Claude Opus calls to {to} [deploy]'
+
+  - repo: JMill/tee-site
+    file: apps/book-engine/src/claude-models.ts
+    family: anthropic.opus
+    pattern: '(\bopus:\s*["''])claude-opus-[a-z0-9-]+(["''])'
+    replacement_template: '$1{recommended}$2'
+    branch_prefix: chore/model-bump
+    commit_template: 'Upgrade Claude Opus calls to {to} [deploy]'
+
+  # Sonnet: canonical + book engine, Sigline, Conduit, Python, Flare.
+  - repo: JMill/tee-site
+    file: packages/shared-types/src/models.ts
+    family: anthropic.sonnet
+    pattern: '(\bsonnet:\s*["''])claude-sonnet-[a-z0-9-]+(["''])'
+    replacement_template: '$1{recommended}$2'
+    branch_prefix: chore/model-bump
+    commit_template: 'Upgrade Claude Sonnet calls to {to} [deploy]'
+
+  - repo: JMill/tee-site
+    file: apps/book-engine/src/claude-models.ts
+    family: anthropic.sonnet
+    pattern: '(\bsonnet:\s*["''])claude-sonnet-[a-z0-9-]+(["''])'
+    replacement_template: '$1{recommended}$2'
+    branch_prefix: chore/model-bump
+    commit_template: 'Upgrade Claude Sonnet calls to {to} [deploy]'
+
+  - repo: JMill/tee-site
+    file: apps/sigline/src/lib/claude-models.ts
+    family: anthropic.sonnet
+    pattern: '(\bsonnet:\s*["''])claude-sonnet-[a-z0-9-]+(["''])'
+    replacement_template: '$1{recommended}$2'
+    branch_prefix: chore/model-bump
+    commit_template: 'Upgrade Claude Sonnet calls to {to} [deploy]'
+
+  - repo: JMill/tee-site
+    file: apps/conduit/src/lib/claude-models.ts
+    family: anthropic.sonnet
+    pattern: '(\bsonnet:\s*["''])claude-sonnet-[a-z0-9-]+(["''])'
+    replacement_template: '$1{recommended}$2'
+    branch_prefix: chore/model-bump
+    commit_template: 'Upgrade Claude Sonnet calls to {to} [deploy]'
+
+  - repo: JMill/tee-site
+    file: scripts/claude_models.py
+    family: anthropic.sonnet
+    pattern: '^(SONNET\s*=\s*["''])claude-sonnet-[a-z0-9-]+(["''])'
+    flags: m
+    replacement_template: '$1{recommended}$2'
+    branch_prefix: chore/model-bump
+    commit_template: 'Upgrade Claude Sonnet calls to {to} [deploy]'
+
+  # Flare/config.json: only generation.model, the file's one model ID.
+  - repo: JMill/tee-site
+    file: Flare/config.json
+    family: anthropic.sonnet
+    pattern: '("generation"\s*:\s*\{[^{}]*?"model"\s*:\s*")claude-sonnet-[a-z0-9-]+(")'
+    replacement_template: '$1{recommended}$2'
+    branch_prefix: chore/model-bump
+    commit_template: 'Upgrade Claude Sonnet calls to {to} [deploy]'
+
+  # Haiku: canonical + Effector ID.
+  - repo: JMill/tee-site
+    file: packages/shared-types/src/models.ts
+    family: anthropic.haiku
+    pattern: '(\bhaiku:\s*["''])claude-haiku-[a-z0-9-]+(["''])'
+    replacement_template: '$1{recommended_alias}$2'
+    branch_prefix: chore/model-bump
+    commit_template: 'Upgrade Claude Haiku calls to {to} [deploy]'
+
+  - repo: JMill/tee-site
+    file: apps/id/src/lib/claude-models.ts
+    family: anthropic.haiku
+    pattern: '(\bhaiku:\s*["''])claude-haiku-[a-z0-9-]+(["''])'
+    replacement_template: '$1{recommended_alias}$2'
+    branch_prefix: chore/model-bump
+    commit_template: 'Upgrade Claude Haiku calls to {to} [deploy]'
+
+  # JMill/UAPNOW: canonical agents/shared/src/models.ts plus the Python ingest
+  # mirror that agents/shared/tests/claude-models-python-parity.test.ts holds
+  # equal to it (Haiku only).
+  - repo: JMill/UAPNOW
+    file: agents/shared/src/models.ts
+    family: anthropic.opus
+    pattern: '(\bopus:\s*["''])claude-opus-[a-z0-9-]+(["''])'
+    replacement_template: '$1{recommended}$2'
+    branch_prefix: chore/model-bump
+
+  - repo: JMill/UAPNOW
+    file: agents/shared/src/models.ts
+    family: anthropic.sonnet
+    pattern: '(\bsonnet:\s*["''])claude-sonnet-[a-z0-9-]+(["''])'
+    replacement_template: '$1{recommended}$2'
+    branch_prefix: chore/model-bump
+
+  - repo: JMill/UAPNOW
+    file: agents/shared/src/models.ts
+    family: anthropic.haiku
+    pattern: '(\bhaiku:\s*["''])claude-haiku-[a-z0-9-]+(["''])'
+    replacement_template: '$1{recommended_alias}$2'
+    branch_prefix: chore/model-bump
+
+  - repo: JMill/UAPNOW
+    file: agents/ingest/src/uapnow_ingest/claude_models.py
+    family: anthropic.haiku
+    pattern: '^(HAIKU\s*=\s*["''])claude-haiku-[a-z0-9-]+(["''])'
+    flags: m
+    replacement_template: '$1{recommended_alias}$2'
+    branch_prefix: chore/model-bump
+
+  # JMill/portfolio-sites: scripts/_shared/models.ts is the only file with a
+  # Claude model ID (tests/unit/claude-models.test.ts checks its shape, not
+  # the value, so a bump passes CI).
+  - repo: JMill/portfolio-sites
+    file: scripts/_shared/models.ts
+    family: anthropic.sonnet
+    pattern: '(\bsonnet:\s*["''])claude-sonnet-[a-z0-9-]+(["''])'
+    replacement_template: '$1{recommended}$2'
+    branch_prefix: chore/model-bump
