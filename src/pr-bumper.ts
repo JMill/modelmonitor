@@ -92,6 +92,9 @@ export interface GroupResult {
   resolved_repo?: string;
   // Set when GitHub answered 404 for `repo`: the token cannot see it.
   unreachable?: boolean;
+  // Set when a call failed with 401, 403 or 404 after the repo was read: the
+  // token can see it but may not write to it.
+  denied?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -952,8 +955,6 @@ async function findOpenPr(
   }
 }
 
-// Run every group. A group that throws is reported as failed and the rest
-// still run: one consumer's problem never blocks another's bump.
 // The repositories a run without BUMP_PR_TOKEN cannot bump, deduplicated
 // case-insensitively (first spelling kept). In GitHub Actions the workflow's
 // own GITHUB_TOKEN can write only to the repository running the workflow
@@ -975,6 +976,8 @@ export function reposNeedingBumpToken(
   return [...seen.values()];
 }
 
+// Run every group. A group that throws is reported as failed and the rest
+// still run: one consumer's problem never blocks another's bump.
 export async function bumpAll(
   octokit: Octokit,
   entries: RegistryEntry[],
@@ -986,6 +989,7 @@ export async function bumpAll(
     try {
       results.push(await bumpGroup(octokit, group, manifest, runUrl));
     } catch (err) {
+      const status = statusOf(err);
       results.push({
         repo: group.repo,
         family: group.family,
@@ -996,6 +1000,7 @@ export async function bumpAll(
         file_results: [],
         unserved: [],
         superseded: [],
+        ...(status === 401 || status === 403 || status === 404 ? { denied: true } : {}),
       });
     }
   }

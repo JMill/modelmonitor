@@ -3,6 +3,7 @@ import {
   BUMP_ALERT_TITLE,
   bumpProblems,
   missingBumpTokenProblem,
+  pushModeProblems,
   formatAllClearBody,
   formatBumpAlertBody,
   publishBumpAlert,
@@ -1046,6 +1047,56 @@ describe("bump token access", () => {
     expect(result.resolved_repo).toBe("JMill/tee-site-renamed");
     expect(reposNeedingBumpToken([result], "jmill/TEE-SITE-RENAMED")).toEqual([]);
     expect(reposNeedingBumpToken([result], "JMill/modelmonitor")).toEqual(["JMill/tee-site-renamed"]);
+  });
+
+  it("marks a refused write in a repo the token can read, and folds it into the missing-secret line", async () => {
+    gh.readOnlyRepos.add(REPO.toLowerCase());
+    const results = await bumpAll(
+      gh.asOctokit(),
+      [entry({ file: "packages/models/src/models.ts", family: "anthropic.sonnet", ...keyAnchored("sonnet") })],
+      manifest,
+      undefined,
+    );
+    expect(results[0].status).toBe("failed");
+    expect(results[0].denied).toBe(true);
+    expect(results[0].unreachable).toBeUndefined();
+    expect(gh.pulls(REPO)).toHaveLength(0);
+    const problems = pushModeProblems(results, "JMill/modelmonitor", true);
+    expect(problems).toEqual([missingBumpTokenProblem([REPO], "JMill/modelmonitor")]);
+    // With the secret set, the same refusal is reported as the bump failure it is.
+    expect(pushModeProblems(results, "JMill/modelmonitor", false)).toEqual(bumpProblems(results));
+    expect(pushModeProblems(results, "JMill/modelmonitor", false)[0]).toContain("bump failed");
+  });
+
+  it("still reports a pattern that matches nothing in a repo waiting on the secret", async () => {
+    const results = await bumpAll(
+      gh.asOctokit(),
+      [
+        entry({ repo: "JMill/private-elsewhere", file: "a.ts", family: "anthropic.opus", ...keyAnchored("opus") }),
+        // Readable, so the drifted pattern is visible now: adding the secret
+        // must not be what uncovers it.
+        entry({ file: "README.md", family: "anthropic.sonnet", ...keyAnchored("sonnet") }),
+      ],
+      manifest,
+      undefined,
+    );
+    expect(results.map((r) => r.status)).toEqual(["failed", "skipped_no_match"]);
+    const problems = pushModeProblems(results, "JMill/modelmonitor", true);
+    expect(problems).toEqual([
+      missingBumpTokenProblem(["JMill/private-elsewhere", REPO], "JMill/modelmonitor"),
+      expect.stringContaining("`README.md`: pattern matched nothing"),
+    ]);
+    expect(problems.join("\n")).not.toContain("GitHub returned 404");
+  });
+
+  it("reports results as they are when every consumer is the repository running the workflow", async () => {
+    const results = await bumpAll(
+      gh.asOctokit(),
+      [entry({ file: "README.md", family: "anthropic.sonnet", ...keyAnchored("sonnet") })],
+      manifest,
+      undefined,
+    );
+    expect(pushModeProblems(results, REPO, true)).toEqual(bumpProblems(results));
   });
 
   it("explains the missing secret and how to fix it in one alert line", () => {

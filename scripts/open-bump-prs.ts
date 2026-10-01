@@ -2,9 +2,9 @@
 import { readFile } from "node:fs/promises";
 import { Octokit } from "@octokit/rest";
 import yaml from "js-yaml";
-import { bumpProblems, missingBumpTokenProblem, publishBumpAlert } from "../src/alerts.ts";
+import { publishBumpAlert, pushModeProblems } from "../src/alerts.ts";
 import { MANIFEST_PATH, readManifest } from "../src/manifest.ts";
-import { bumpAll, reposNeedingBumpToken } from "../src/pr-bumper.ts";
+import { bumpAll } from "../src/pr-bumper.ts";
 import { Registry } from "../src/types.ts";
 
 // Exit codes: a broken registry or a missing manifest exits 1 (nothing can
@@ -50,28 +50,15 @@ async function main() {
     );
   }
 
-  // In Actions, GITHUB_TOKEN can write only to the repository running the
-  // workflow. Without BUMP_PR_TOKEN, every consumer elsewhere either 404s
-  // (private) or can be read but never bumped (public), so report the missing
-  // secret once for all of them; a group that happens to be current must not
-  // close the alert while the secret is still missing. Every entry is still
-  // attempted first, so an old name that redirects to this repository keeps
-  // working. (Run locally, GITHUB_TOKEN may be a personal token: its results
-  // are reported as they are.)
-  let problems = bumpProblems(results);
-  if (!process.env.BUMP_PR_TOKEN && process.env.GITHUB_ACTIONS === "true") {
-    const thisRepo = process.env.GITHUB_REPOSITORY;
-    const needing = reposNeedingBumpToken(results, thisRepo);
-    if (needing.length) {
-      const blocked = new Set(needing.map((r) => r.toLowerCase()));
-      const isBlocked = (r: (typeof results)[number]) =>
-        blocked.has((r.unreachable ? r.repo : (r.resolved_repo ?? r.repo)).toLowerCase());
-      problems = [
-        missingBumpTokenProblem(needing, thisRepo),
-        ...bumpProblems(results.filter((r) => !isBlocked(r))),
-      ];
-    }
-  }
+  // Run locally, GITHUB_TOKEN may be a personal token: its results are
+  // reported as they are. Every entry is attempted before the missing secret
+  // is reported, so an old name that redirects to this repository keeps
+  // working.
+  const problems = pushModeProblems(
+    results,
+    process.env.GITHUB_REPOSITORY,
+    !process.env.BUMP_PR_TOKEN && process.env.GITHUB_ACTIONS === "true",
+  );
   for (const p of problems) console.warn(p);
   await reportProblems(problems, runUrl);
 }
