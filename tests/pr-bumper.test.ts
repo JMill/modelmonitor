@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   BUMP_ALERT_TITLE,
   bumpProblems,
+  missingBumpTokenProblem,
+  pushModeProblems,
   formatAllClearBody,
   formatBumpAlertBody,
   publishBumpAlert,
@@ -16,6 +18,7 @@ import {
   groupEntries,
   isCurrentPin,
   planFile,
+  reposNeedingBumpToken,
   resolveTarget,
 } from "../src/pr-bumper.ts";
 import { Manifest, RegistryEntry } from "../src/types.ts";
@@ -993,5 +996,135 @@ describe("bump alerts", () => {
     expect(results[0].status).toBe("failed");
     expect(results[0].error).toContain("packages/gone.ts could not be read");
     expect(gh.pulls(REPO)).toHaveLength(0);
+  });
+});
+
+describe("bump token access", () => {
+  it("names the repository the token cannot see instead of GitHub's bare Not Found", async () => {
+    const results = await bumpAll(
+      gh.asOctokit(),
+      [entry({ repo: "JMill/private-elsewhere", file: "src/models.ts", family: "anthropic.sonnet", ...keyAnchored("sonnet") })],
+      manifest,
+      undefined,
+    );
+    expect(results[0].status).toBe("failed");
+    expect(results[0].error).toContain("GitHub returned 404 for JMill/private-elsewhere");
+    expect(results[0].error).toContain("cannot see this repository");
+    expect(bumpProblems(results)).toEqual([expect.stringContaining("Give BUMP_PR_TOKEN access to it")]);
+    expect(gh.calls).not.toContain("git.createCommit");
+  });
+
+  it("lists every repo the workflow token can't bump once: private 404s and readable public repos alike", async () => {
+    const results = await bumpAll(
+      gh.asOctokit(),
+      [
+        entry({ repo: "JMill/private-elsewhere", file: "a.ts", family: "anthropic.sonnet", ...keyAnchored("sonnet") }),
+        entry({ repo: "jmill/PRIVATE-ELSEWHERE", file: "a.ts", family: "anthropic.opus", ...keyAnchored("opus") }),
+        // Readable (and already current) with the workflow token, but it can't
+        // push there, so the missing secret still has to be reported for it.
+        entry({ file: "packages/models/src/models.ts", family: "anthropic.haiku", ...keyAnchored("haiku") }),
+      ],
+      manifest,
+      undefined,
+    );
+    expect(results.map((r) => Boolean(r.unreachable))).toEqual([true, true, false]);
+    expect(results[2].status).toBe("skipped_already_current");
+    expect(reposNeedingBumpToken(results, "JMill/modelmonitor")).toEqual([
+      "JMill/private-elsewhere",
+      REPO,
+    ]);
+  });
+
+  it("does not count this repository, even by an old name that redirects to it", async () => {
+    gh.renameRepo(REPO, "JMill/tee-site-renamed");
+    const [result] = await bumpAll(
+      gh.asOctokit(),
+      [entry({ file: "packages/models/src/models.ts", family: "anthropic.haiku", ...keyAnchored("haiku") })],
+      manifest,
+      undefined,
+    );
+    expect(result.unreachable).toBeUndefined();
+    expect(result.resolved_repo).toBe("JMill/tee-site-renamed");
+    expect(reposNeedingBumpToken([result], "jmill/TEE-SITE-RENAMED")).toEqual([]);
+    expect(reposNeedingBumpToken([result], "JMill/modelmonitor")).toEqual(["JMill/tee-site-renamed"]);
+  });
+
+  it("marks a refused write in a repo the token can read, and folds it into the missing-secret line", async () => {
+    gh.readOnlyRepos.add(REPO.toLowerCase());
+    const results = await bumpAll(
+      gh.asOctokit(),
+      [entry({ file: "packages/models/src/models.ts", family: "anthropic.sonnet", ...keyAnchored("sonnet") })],
+      manifest,
+      undefined,
+    );
+    expect(results[0].status).toBe("failed");
+    expect(results[0].denied).toBe(true);
+    expect(results[0].unreachable).toBeUndefined();
+    expect(gh.pulls(REPO)).toHaveLength(0);
+    const problems = pushModeProblems(results, "JMill/modelmonitor", true);
+    expect(problems).toEqual([missingBumpTokenProblem([REPO], "JMill/modelmonitor")]);
+    // With the secret set, the same refusal is reported as the bump failure it is.
+    expect(pushModeProblems(results, "JMill/modelmonitor", false)).toEqual(bumpProblems(results));
+    expect(pushModeProblems(results, "JMill/modelmonitor", false)[0]).toContain("bump failed");
+  });
+
+  it("keeps a rename visible when the write in the renamed repo is refused", async () => {
+    gh.renameRepo(REPO, "JMill/tee-site-renamed");
+    gh.readOnlyRepos.add("jmill/tee-site-renamed");
+    const results = await bumpAll(
+      gh.asOctokit(),
+      [entry({ file: "packages/models/src/models.ts", family: "anthropic.sonnet", ...keyAnchored("sonnet") })],
+      manifest,
+      undefined,
+    );
+    expect(results[0].denied).toBe(true);
+    expect(results[0].resolved_repo).toBe("JMill/tee-site-renamed");
+    expect(pushModeProblems(results, "JMill/modelmonitor", true)).toEqual([
+      missingBumpTokenProblem(["JMill/tee-site-renamed"], "JMill/modelmonitor"),
+      expect.stringContaining("GitHub now names this repo `JMill/tee-site-renamed`"),
+    ]);
+  });
+
+  it("still reports a pattern that matches nothing in a repo waiting on the secret", async () => {
+    const results = await bumpAll(
+      gh.asOctokit(),
+      [
+        entry({ repo: "JMill/private-elsewhere", file: "a.ts", family: "anthropic.opus", ...keyAnchored("opus") }),
+        // Readable, so the drifted pattern is visible now and holds its group
+        // before any write: adding the secret must not be what uncovers it.
+        entry({ file: "packages/models/src/models.ts", family: "anthropic.sonnet", ...keyAnchored("sonnet") }),
+        entry({ file: "README.md", family: "anthropic.sonnet", ...keyAnchored("sonnet") }),
+      ],
+      manifest,
+      undefined,
+    );
+    expect(results.map((r) => r.status)).toEqual(["failed", "failed"]);
+    expect(results[1].denied).toBeUndefined();
+    const problems = pushModeProblems(results, "JMill/modelmonitor", true);
+    expect(problems).toEqual([
+      missingBumpTokenProblem(["JMill/private-elsewhere", REPO], "JMill/modelmonitor"),
+      expect.stringContaining("bump failed: no PR opened: this group's files change together, and README.md matched nothing"),
+      expect.stringContaining("`README.md`: pattern matched nothing"),
+    ]);
+    expect(problems.join("\n")).not.toContain("GitHub returned 404");
+  });
+
+  it("reports results as they are when every consumer is the repository running the workflow", async () => {
+    const results = await bumpAll(
+      gh.asOctokit(),
+      [entry({ file: "README.md", family: "anthropic.sonnet", ...keyAnchored("sonnet") })],
+      manifest,
+      undefined,
+    );
+    expect(pushModeProblems(results, REPO, true)).toEqual(bumpProblems(results));
+  });
+
+  it("explains the missing secret and how to fix it in one alert line", () => {
+    const line = missingBumpTokenProblem(["JMill/tee-site", "JMill/UAPNOW"], "JMill/modelmonitor");
+    expect(line).toMatch(/^- `BUMP_PR_TOKEN` is not set/);
+    expect(line).toContain("can only reach `JMill/modelmonitor`");
+    expect(line).toContain("`JMill/tee-site`, `JMill/UAPNOW`");
+    expect(line).toContain("Contents and Pull requests read and write access to those repositories");
+    expect(missingBumpTokenProblem(["JMill/tee-site"], undefined)).toContain("that repository");
   });
 });

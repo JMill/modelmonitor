@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Octokit } from "@octokit/rest";
-import type { GroupResult } from "./pr-bumper.ts";
+import { reposNeedingBumpToken, type GroupResult } from "./pr-bumper.ts";
 import type { AlertEntry, DiffEntry } from "./types.ts";
 
 export interface AlertContext {
@@ -113,6 +113,44 @@ export const BUMP_ALERT_TITLE = "modelmonitor: bump PRs need attention";
 // alias it writes is unavailable, and a declined bump whose pinned model the
 // provider no longer lists. Routine outcomes (opened, current, existing PR,
 // declined) are not problems.
+// The one problem line for a run that has no BUMP_PR_TOKEN but consumers in
+// other repositories: without it every bump fails with GitHub's bare 404.
+export function missingBumpTokenProblem(repos: string[], thisRepo: string | undefined): string {
+  const list = repos.map((r) => `\`${r}\``).join(", ");
+  const own = thisRepo ? `\`${thisRepo}\`` : "the repository running the workflow";
+  return `- \`BUMP_PR_TOKEN\` is not set, and the workflow's own token can only reach ${own}, so no bump PR can open for ${list}. Create a fine-grained token with Contents and Pull requests read and write access to ${repos.length === 1 ? "that repository" : "those repositories"} and save it as this repository's \`BUMP_PR_TOKEN\` secret.`;
+}
+
+// The problem lines for a push-mode run. `missingBumpToken` is true for a run
+// in GitHub Actions without BUMP_PR_TOKEN, where the workflow's own
+// GITHUB_TOKEN can write only to `thisRepo`: every consumer elsewhere either
+// 404s (private) or can be read but never bumped (public), so the missing
+// secret is reported once for all of them, and a group that happens to be
+// current can't close the alert while it is still missing. Only the failures
+// the token causes (a 404, a refused write) fold into that line; a pattern
+// that matches nothing, an unreadable file or a rename in one of those repos
+// is still reported, so adding the secret doesn't uncover a second problem a
+// run later.
+export function pushModeProblems(
+  results: GroupResult[],
+  thisRepo: string | undefined,
+  missingBumpToken: boolean,
+): string[] {
+  if (!missingBumpToken) return bumpProblems(results);
+  const needing = reposNeedingBumpToken(results, thisRepo);
+  if (!needing.length) return bumpProblems(results);
+  const blocked = new Set(needing.map((r) => r.toLowerCase()));
+  const tokenFailure = (r: GroupResult) =>
+    Boolean(r.unreachable || r.denied) &&
+    blocked.has((r.unreachable ? r.repo : (r.resolved_repo ?? r.repo)).toLowerCase());
+  // Drop just the token's error from those results; a rename they carry is
+  // still reported.
+  return [
+    missingBumpTokenProblem(needing, thisRepo),
+    ...bumpProblems(results.map((r) => (tokenFailure(r) ? { ...r, error: undefined } : r))),
+  ];
+}
+
 export function bumpProblems(results: GroupResult[]): string[] {
   const lines: string[] = [];
   for (const r of results) {

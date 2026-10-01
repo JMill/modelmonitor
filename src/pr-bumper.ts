@@ -90,6 +90,11 @@ export interface GroupResult {
   // Set when GitHub resolves `repo` to a different owner/name (the repo was
   // renamed or transferred): the registry entry should be updated.
   resolved_repo?: string;
+  // Set when GitHub answered 404 for `repo`: the token cannot see it.
+  unreachable?: boolean;
+  // Set when a call failed with 401, 403 or 404 after the repo was read: the
+  // token can see it but may not write to it.
+  denied?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -611,7 +616,20 @@ export async function bumpGroup(
   // Canonical coordinates first: every later call, the head filter and the
   // same-repo check use GitHub's current owner/name, never the registry's.
   const [regOwner, regRepo] = group.repo.split("/");
-  const info = (await octokit.repos.get({ owner: regOwner, repo: regRepo })).data;
+  const info = await octokit.repos
+    .get({ owner: regOwner, repo: regRepo })
+    .then((r) => r.data)
+    .catch((err) => {
+      // GitHub answers 404, not 403, when a token cannot see a private
+      // repository, so "Not Found" almost always means missing access.
+      if (statusOf(err) === 404) return null;
+      throw err;
+    });
+  if (!info) {
+    result.unreachable = true;
+    result.error = `GitHub returned 404 for ${group.repo}: the bump token cannot see this repository. Give BUMP_PR_TOKEN access to it, or remove the entry if the repository is gone`;
+    return result;
+  }
   const where: RepoRef = { owner: info.owner.login, repo: info.name, fullName: info.full_name };
   const { owner, repo } = where;
   if (where.fullName.toLowerCase() !== group.repo.toLowerCase()) {
@@ -937,6 +955,27 @@ async function findOpenPr(
   }
 }
 
+// The repositories a run without BUMP_PR_TOKEN cannot bump, deduplicated
+// case-insensitively (first spelling kept). In GitHub Actions the workflow's
+// own GITHUB_TOKEN can write only to the repository running the workflow
+// (`thisRepo`), so that is every group whose repository, after following a
+// rename (`resolved_repo`), is another one: a 404 (`unreachable`), but also a
+// public repository the token can read and not write to. An entry using an
+// old name of `thisRepo` resolves to it and is not counted.
+export function reposNeedingBumpToken(
+  results: Pick<GroupResult, "repo" | "resolved_repo" | "unreachable">[],
+  thisRepo: string | undefined,
+): string[] {
+  const own = thisRepo?.toLowerCase();
+  const seen = new Map<string, string>();
+  for (const r of results) {
+    const canonical = r.unreachable ? r.repo : (r.resolved_repo ?? r.repo);
+    const key = canonical.toLowerCase();
+    if ((r.unreachable || key !== own) && !seen.has(key)) seen.set(key, canonical);
+  }
+  return [...seen.values()];
+}
+
 // Run every group. A group that throws is reported as failed and the rest
 // still run: one consumer's problem never blocks another's bump.
 export async function bumpAll(
@@ -950,6 +989,14 @@ export async function bumpAll(
     try {
       results.push(await bumpGroup(octokit, group, manifest, runUrl));
     } catch (err) {
+      const status = statusOf(err);
+      // The partial result is gone with the throw, so look the repository up
+      // again: a rename must still be reported, and named by its current name.
+      const [owner, repo] = group.repo.split("/");
+      const current = await octokit.repos
+        .get({ owner, repo })
+        .then((r) => r.data.full_name)
+        .catch(() => undefined);
       results.push({
         repo: group.repo,
         family: group.family,
@@ -960,6 +1007,10 @@ export async function bumpAll(
         file_results: [],
         unserved: [],
         superseded: [],
+        ...(current && current.toLowerCase() !== group.repo.toLowerCase()
+          ? { resolved_repo: current }
+          : {}),
+        ...(status === 401 || status === 403 || status === 404 ? { denied: true } : {}),
       });
     }
   }

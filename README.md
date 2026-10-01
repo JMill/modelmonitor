@@ -392,8 +392,13 @@ Set these in repo Settings → Secrets and variables → Actions:
 left out of the manifest. At least one must be set, or the run raises a
 `no_providers_configured` alert.
 
-\*\* Needed only when `registry.yml` has consumers. Push-mode alert issues are
-filed in this repo with the workflow's own `GITHUB_TOKEN`.
+\*\* Needed only when `registry.yml` has consumers in other repositories: the
+workflow's own `GITHUB_TOKEN` can write only to this one. Without it the
+alert issue reports the missing secret once, naming every consumer repository
+it must cover (private ones answer 404; public ones can be read but never
+bumped); with a token that can't see a consumer, the alert names that
+repository. Push-mode
+alert issues are filed in this repo with the workflow's own `GITHUB_TOKEN`.
 
 ## Local development
 

@@ -2,7 +2,7 @@
 import { readFile } from "node:fs/promises";
 import { Octokit } from "@octokit/rest";
 import yaml from "js-yaml";
-import { bumpProblems, publishBumpAlert } from "../src/alerts.ts";
+import { publishBumpAlert, pushModeProblems } from "../src/alerts.ts";
 import { MANIFEST_PATH, readManifest } from "../src/manifest.ts";
 import { bumpAll } from "../src/pr-bumper.ts";
 import { Registry } from "../src/types.ts";
@@ -50,7 +50,15 @@ async function main() {
     );
   }
 
-  const problems = bumpProblems(results);
+  // Run locally, GITHUB_TOKEN may be a personal token: its results are
+  // reported as they are. Every entry is attempted before the missing secret
+  // is reported, so an old name that redirects to this repository keeps
+  // working.
+  const problems = pushModeProblems(
+    results,
+    process.env.GITHUB_REPOSITORY,
+    !process.env.BUMP_PR_TOKEN && process.env.GITHUB_ACTIONS === "true",
+  );
   for (const p of problems) console.warn(p);
   await reportProblems(problems, runUrl);
 }

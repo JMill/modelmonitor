@@ -93,6 +93,9 @@ export class FakeGitHub {
   beforePullCreate: (() => void) | null = null;
   // Test hook: issues.create fails, as with a token that can't write issues.
   failIssueWrites = false;
+  // Repos this token can read but not write (a public repo seen through
+  // another repository's workflow token): git writes there answer 403.
+  readOnlyRepos = new Set<string>();
   // Test hook: head-filtered pulls.list returns nothing, as if GitHub's
   // `owner:branch` matching missed the PR.
   headFilterMisses = false;
@@ -310,6 +313,9 @@ export class FakeGitHub {
       },
       createBlob: async (p: { owner: string; repo: string; content: string; encoding: string }) => {
         this.calls.push("git.createBlob");
+        if (this.readOnlyRepos.has(`${p.owner}/${p.repo}`.toLowerCase())) {
+          throw httpError(403, "Resource not accessible by integration");
+        }
         const sha = this.sha();
         const content =
           p.encoding === "base64" ? p.content : Buffer.from(p.content).toString("base64");
