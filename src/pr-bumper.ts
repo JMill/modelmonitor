@@ -90,6 +90,8 @@ export interface GroupResult {
   // Set when GitHub resolves `repo` to a different owner/name (the repo was
   // renamed or transferred): the registry entry should be updated.
   resolved_repo?: string;
+  // Set when GitHub answered 404 for `repo`: the token cannot see it.
+  unreachable?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -621,6 +623,7 @@ export async function bumpGroup(
       throw err;
     });
   if (!info) {
+    result.unreachable = true;
     result.error = `GitHub returned 404 for ${group.repo}: the bump token cannot see this repository. Give BUMP_PR_TOKEN access to it, or remove the entry if the repository is gone`;
     return result;
   }
@@ -951,18 +954,15 @@ async function findOpenPr(
 
 // Run every group. A group that throws is reported as failed and the rest
 // still run: one consumer's problem never blocks another's bump.
-// Consumer repos outside `thisRepo`, deduplicated case-insensitively. In
-// GitHub Actions the workflow's own GITHUB_TOKEN reaches only the repository
-// running the workflow, so without BUMP_PR_TOKEN these can never be bumped.
-export function reposNeedingBumpToken(
-  entries: Pick<RegistryEntry, "repo">[],
-  thisRepo: string | undefined,
-): string[] {
-  const own = thisRepo?.toLowerCase();
+// The distinct repos (case-insensitive, first spelling kept) of groups GitHub
+// answered 404 for. In GitHub Actions without BUMP_PR_TOKEN, the workflow's
+// own GITHUB_TOKEN reaches only the repository running the workflow, so these
+// are the repositories the missing secret would have to cover.
+export function unreachableRepos(results: Pick<GroupResult, "repo" | "unreachable">[]): string[] {
   const seen = new Map<string, string>();
-  for (const { repo } of entries) {
+  for (const { repo, unreachable } of results) {
     const key = repo.toLowerCase();
-    if (key !== own && !seen.has(key)) seen.set(key, repo);
+    if (unreachable && !seen.has(key)) seen.set(key, repo);
   }
   return [...seen.values()];
 }

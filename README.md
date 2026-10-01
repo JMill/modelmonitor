@@ -393,9 +393,10 @@ left out of the manifest. At least one must be set, or the run raises a
 `no_providers_configured` alert.
 
 \*\* Needed only when `registry.yml` has consumers in other repositories: the
-workflow's own `GITHUB_TOKEN` reaches only this one. Without it those
-consumers are skipped and the alert issue says the secret is missing; with a
-token that can't see a consumer, the alert names that repository. Push-mode
+workflow's own `GITHUB_TOKEN` reaches only this one. Without it every
+consumer elsewhere gets GitHub's 404, and the alert issue reports that once as
+the missing secret, naming the repositories it must cover; with a token that
+can't see a consumer, the alert names that repository. Push-mode
 alert issues are filed in this repo with the workflow's own `GITHUB_TOKEN`.
 
 ## Local development

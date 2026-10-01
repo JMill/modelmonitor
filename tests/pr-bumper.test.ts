@@ -17,7 +17,7 @@ import {
   groupEntries,
   isCurrentPin,
   planFile,
-  reposNeedingBumpToken,
+  unreachableRepos,
   resolveTarget,
 } from "../src/pr-bumper.ts";
 import { Manifest, RegistryEntry } from "../src/types.ts";
@@ -1013,15 +1013,32 @@ describe("bump token access", () => {
     expect(gh.calls).not.toContain("git.createCommit");
   });
 
-  it("lists each consumer repo outside the workflow's own repo once", () => {
-    const entries = [
-      { repo: "JMill/tee-site" },
-      { repo: "jmill/TEE-SITE" },
-      { repo: "JMill/modelmonitor" },
-      { repo: "JMill/UAPNOW" },
-    ];
-    expect(reposNeedingBumpToken(entries, "JMill/ModelMonitor")).toEqual(["JMill/tee-site", "JMill/UAPNOW"]);
-    expect(reposNeedingBumpToken([{ repo: "JMill/modelmonitor" }], "JMill/modelmonitor")).toEqual([]);
+  it("lists each repo GitHub answered 404 for once, and only those", async () => {
+    const results = await bumpAll(
+      gh.asOctokit(),
+      [
+        entry({ repo: "JMill/private-elsewhere", file: "a.ts", family: "anthropic.sonnet", ...keyAnchored("sonnet") }),
+        entry({ repo: "jmill/PRIVATE-ELSEWHERE", file: "a.ts", family: "anthropic.opus", ...keyAnchored("opus") }),
+        entry({ file: "packages/models/src/models.ts", family: "anthropic.haiku", ...keyAnchored("haiku") }),
+      ],
+      manifest,
+      undefined,
+    );
+    expect(results.map((r) => Boolean(r.unreachable))).toEqual([true, true, false]);
+    expect(unreachableRepos(results)).toEqual(["JMill/private-elsewhere"]);
+  });
+
+  it("still follows a rename for an entry that names a repo by its old name", async () => {
+    gh.renameRepo(REPO, "JMill/tee-site-renamed");
+    const [result] = await bumpAll(
+      gh.asOctokit(),
+      [entry({ file: "packages/models/src/models.ts", family: "anthropic.haiku", ...keyAnchored("haiku") })],
+      manifest,
+      undefined,
+    );
+    expect(result.unreachable).toBeUndefined();
+    expect(result.resolved_repo).toBe("JMill/tee-site-renamed");
+    expect(unreachableRepos([result])).toEqual([]);
   });
 
   it("explains the missing secret and how to fix it in one alert line", () => {
