@@ -611,7 +611,19 @@ export async function bumpGroup(
   // Canonical coordinates first: every later call, the head filter and the
   // same-repo check use GitHub's current owner/name, never the registry's.
   const [regOwner, regRepo] = group.repo.split("/");
-  const info = (await octokit.repos.get({ owner: regOwner, repo: regRepo })).data;
+  const info = await octokit.repos
+    .get({ owner: regOwner, repo: regRepo })
+    .then((r) => r.data)
+    .catch((err) => {
+      // GitHub answers 404, not 403, when a token cannot see a private
+      // repository, so "Not Found" almost always means missing access.
+      if (statusOf(err) === 404) return null;
+      throw err;
+    });
+  if (!info) {
+    result.error = `GitHub returned 404 for ${group.repo}: the bump token cannot see this repository. Give BUMP_PR_TOKEN access to it, or remove the entry if the repository is gone`;
+    return result;
+  }
   const where: RepoRef = { owner: info.owner.login, repo: info.name, fullName: info.full_name };
   const { owner, repo } = where;
   if (where.fullName.toLowerCase() !== group.repo.toLowerCase()) {
@@ -939,6 +951,22 @@ async function findOpenPr(
 
 // Run every group. A group that throws is reported as failed and the rest
 // still run: one consumer's problem never blocks another's bump.
+// Consumer repos outside `thisRepo`, deduplicated case-insensitively. In
+// GitHub Actions the workflow's own GITHUB_TOKEN reaches only the repository
+// running the workflow, so without BUMP_PR_TOKEN these can never be bumped.
+export function reposNeedingBumpToken(
+  entries: Pick<RegistryEntry, "repo">[],
+  thisRepo: string | undefined,
+): string[] {
+  const own = thisRepo?.toLowerCase();
+  const seen = new Map<string, string>();
+  for (const { repo } of entries) {
+    const key = repo.toLowerCase();
+    if (key !== own && !seen.has(key)) seen.set(key, repo);
+  }
+  return [...seen.values()];
+}
+
 export async function bumpAll(
   octokit: Octokit,
   entries: RegistryEntry[],

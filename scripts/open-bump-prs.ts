@@ -2,9 +2,9 @@
 import { readFile } from "node:fs/promises";
 import { Octokit } from "@octokit/rest";
 import yaml from "js-yaml";
-import { bumpProblems, publishBumpAlert } from "../src/alerts.ts";
+import { bumpProblems, missingBumpTokenProblem, publishBumpAlert } from "../src/alerts.ts";
 import { MANIFEST_PATH, readManifest } from "../src/manifest.ts";
-import { bumpAll } from "../src/pr-bumper.ts";
+import { bumpAll, reposNeedingBumpToken } from "../src/pr-bumper.ts";
 import { Registry } from "../src/types.ts";
 
 // Exit codes: a broken registry or a missing manifest exits 1 (nothing can
@@ -32,6 +32,22 @@ async function main() {
     console.error("missing BUMP_PR_TOKEN (or GITHUB_TOKEN); skipping bump PRs");
     return;
   }
+  // In Actions, GITHUB_TOKEN reaches only the repository running the
+  // workflow. Without BUMP_PR_TOKEN, consumers elsewhere would each fail with
+  // GitHub's bare "Not Found", so report the missing secret once and skip
+  // them. (Run locally, GITHUB_TOKEN may be a personal token, so it is
+  // trusted as given.)
+  let consumers = registry.consumers;
+  const setupProblems: string[] = [];
+  if (!process.env.BUMP_PR_TOKEN && process.env.GITHUB_ACTIONS === "true") {
+    const thisRepo = process.env.GITHUB_REPOSITORY;
+    const unreachable = reposNeedingBumpToken(consumers, thisRepo);
+    if (unreachable.length) {
+      setupProblems.push(missingBumpTokenProblem(unreachable, thisRepo));
+      const skip = new Set(unreachable.map((r) => r.toLowerCase()));
+      consumers = consumers.filter((c) => !skip.has(c.repo.toLowerCase()));
+    }
+  }
   const manifest = await readManifest(MANIFEST_PATH);
   if (!manifest) {
     console.error(`no manifest at ${MANIFEST_PATH}; run check-models first`);
@@ -39,7 +55,7 @@ async function main() {
   }
 
   const octokit = new Octokit({ auth: token });
-  const results = await bumpAll(octokit, registry.consumers, manifest, runUrl);
+  const results = await bumpAll(octokit, consumers, manifest, runUrl);
   for (const r of results) {
     const { file_results, ...summary } = r;
     console.log(
@@ -50,7 +66,7 @@ async function main() {
     );
   }
 
-  const problems = bumpProblems(results);
+  const problems = [...setupProblems, ...bumpProblems(results)];
   for (const p of problems) console.warn(p);
   await reportProblems(problems, runUrl);
 }

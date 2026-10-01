@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   BUMP_ALERT_TITLE,
   bumpProblems,
+  missingBumpTokenProblem,
   formatAllClearBody,
   formatBumpAlertBody,
   publishBumpAlert,
@@ -16,6 +17,7 @@ import {
   groupEntries,
   isCurrentPin,
   planFile,
+  reposNeedingBumpToken,
   resolveTarget,
 } from "../src/pr-bumper.ts";
 import { Manifest, RegistryEntry } from "../src/types.ts";
@@ -993,5 +995,41 @@ describe("bump alerts", () => {
     expect(results[0].status).toBe("failed");
     expect(results[0].error).toContain("packages/gone.ts could not be read");
     expect(gh.pulls(REPO)).toHaveLength(0);
+  });
+});
+
+describe("bump token access", () => {
+  it("names the repository the token cannot see instead of GitHub's bare Not Found", async () => {
+    const results = await bumpAll(
+      gh.asOctokit(),
+      [entry({ repo: "JMill/private-elsewhere", file: "src/models.ts", family: "anthropic.sonnet", ...keyAnchored("sonnet") })],
+      manifest,
+      undefined,
+    );
+    expect(results[0].status).toBe("failed");
+    expect(results[0].error).toContain("GitHub returned 404 for JMill/private-elsewhere");
+    expect(results[0].error).toContain("cannot see this repository");
+    expect(bumpProblems(results)).toEqual([expect.stringContaining("Give BUMP_PR_TOKEN access to it")]);
+    expect(gh.calls).not.toContain("git.createCommit");
+  });
+
+  it("lists each consumer repo outside the workflow's own repo once", () => {
+    const entries = [
+      { repo: "JMill/tee-site" },
+      { repo: "jmill/TEE-SITE" },
+      { repo: "JMill/modelmonitor" },
+      { repo: "JMill/UAPNOW" },
+    ];
+    expect(reposNeedingBumpToken(entries, "JMill/ModelMonitor")).toEqual(["JMill/tee-site", "JMill/UAPNOW"]);
+    expect(reposNeedingBumpToken([{ repo: "JMill/modelmonitor" }], "JMill/modelmonitor")).toEqual([]);
+  });
+
+  it("explains the missing secret and how to fix it in one alert line", () => {
+    const line = missingBumpTokenProblem(["JMill/tee-site", "JMill/UAPNOW"], "JMill/modelmonitor");
+    expect(line).toMatch(/^- `BUMP_PR_TOKEN` is not set/);
+    expect(line).toContain("can only reach `JMill/modelmonitor`");
+    expect(line).toContain("`JMill/tee-site`, `JMill/UAPNOW`");
+    expect(line).toContain("Contents and Pull requests read and write access to those repositories");
+    expect(missingBumpTokenProblem(["JMill/tee-site"], undefined)).toContain("that repository");
   });
 });

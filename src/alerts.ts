@@ -113,6 +113,14 @@ export const BUMP_ALERT_TITLE = "modelmonitor: bump PRs need attention";
 // alias it writes is unavailable, and a declined bump whose pinned model the
 // provider no longer lists. Routine outcomes (opened, current, existing PR,
 // declined) are not problems.
+// The one problem line for a run that has no BUMP_PR_TOKEN but consumers in
+// other repositories: without it every bump fails with GitHub's bare 404.
+export function missingBumpTokenProblem(repos: string[], thisRepo: string | undefined): string {
+  const list = repos.map((r) => `\`${r}\``).join(", ");
+  const own = thisRepo ? `\`${thisRepo}\`` : "the repository running the workflow";
+  return `- \`BUMP_PR_TOKEN\` is not set, and the workflow's own token can only reach ${own}, so no bump PR can open for ${list}. Create a fine-grained token with Contents and Pull requests read and write access to ${repos.length === 1 ? "that repository" : "those repositories"} and save it as this repository's \`BUMP_PR_TOKEN\` secret.`;
+}
+
 export function bumpProblems(results: GroupResult[]): string[] {
   const lines: string[] = [];
   for (const r of results) {
