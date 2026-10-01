@@ -17,7 +17,7 @@ import {
   groupEntries,
   isCurrentPin,
   planFile,
-  unreachableRepos,
+  reposNeedingBumpToken,
   resolveTarget,
 } from "../src/pr-bumper.ts";
 import { Manifest, RegistryEntry } from "../src/types.ts";
@@ -1013,22 +1013,28 @@ describe("bump token access", () => {
     expect(gh.calls).not.toContain("git.createCommit");
   });
 
-  it("lists each repo GitHub answered 404 for once, and only those", async () => {
+  it("lists every repo the workflow token can't bump once: private 404s and readable public repos alike", async () => {
     const results = await bumpAll(
       gh.asOctokit(),
       [
         entry({ repo: "JMill/private-elsewhere", file: "a.ts", family: "anthropic.sonnet", ...keyAnchored("sonnet") }),
         entry({ repo: "jmill/PRIVATE-ELSEWHERE", file: "a.ts", family: "anthropic.opus", ...keyAnchored("opus") }),
+        // Readable (and already current) with the workflow token, but it can't
+        // push there, so the missing secret still has to be reported for it.
         entry({ file: "packages/models/src/models.ts", family: "anthropic.haiku", ...keyAnchored("haiku") }),
       ],
       manifest,
       undefined,
     );
     expect(results.map((r) => Boolean(r.unreachable))).toEqual([true, true, false]);
-    expect(unreachableRepos(results)).toEqual(["JMill/private-elsewhere"]);
+    expect(results[2].status).toBe("skipped_already_current");
+    expect(reposNeedingBumpToken(results, "JMill/modelmonitor")).toEqual([
+      "JMill/private-elsewhere",
+      REPO,
+    ]);
   });
 
-  it("still follows a rename for an entry that names a repo by its old name", async () => {
+  it("does not count this repository, even by an old name that redirects to it", async () => {
     gh.renameRepo(REPO, "JMill/tee-site-renamed");
     const [result] = await bumpAll(
       gh.asOctokit(),
@@ -1038,7 +1044,8 @@ describe("bump token access", () => {
     );
     expect(result.unreachable).toBeUndefined();
     expect(result.resolved_repo).toBe("JMill/tee-site-renamed");
-    expect(unreachableRepos([result])).toEqual([]);
+    expect(reposNeedingBumpToken([result], "jmill/TEE-SITE-RENAMED")).toEqual([]);
+    expect(reposNeedingBumpToken([result], "JMill/modelmonitor")).toEqual(["JMill/tee-site-renamed"]);
   });
 
   it("explains the missing secret and how to fix it in one alert line", () => {

@@ -954,15 +954,23 @@ async function findOpenPr(
 
 // Run every group. A group that throws is reported as failed and the rest
 // still run: one consumer's problem never blocks another's bump.
-// The distinct repos (case-insensitive, first spelling kept) of groups GitHub
-// answered 404 for. In GitHub Actions without BUMP_PR_TOKEN, the workflow's
-// own GITHUB_TOKEN reaches only the repository running the workflow, so these
-// are the repositories the missing secret would have to cover.
-export function unreachableRepos(results: Pick<GroupResult, "repo" | "unreachable">[]): string[] {
+// The repositories a run without BUMP_PR_TOKEN cannot bump, deduplicated
+// case-insensitively (first spelling kept). In GitHub Actions the workflow's
+// own GITHUB_TOKEN can write only to the repository running the workflow
+// (`thisRepo`), so that is every group whose repository, after following a
+// rename (`resolved_repo`), is another one: a 404 (`unreachable`), but also a
+// public repository the token can read and not write to. An entry using an
+// old name of `thisRepo` resolves to it and is not counted.
+export function reposNeedingBumpToken(
+  results: Pick<GroupResult, "repo" | "resolved_repo" | "unreachable">[],
+  thisRepo: string | undefined,
+): string[] {
+  const own = thisRepo?.toLowerCase();
   const seen = new Map<string, string>();
-  for (const { repo, unreachable } of results) {
-    const key = repo.toLowerCase();
-    if (unreachable && !seen.has(key)) seen.set(key, repo);
+  for (const r of results) {
+    const canonical = r.unreachable ? r.repo : (r.resolved_repo ?? r.repo);
+    const key = canonical.toLowerCase();
+    if ((r.unreachable || key !== own) && !seen.has(key)) seen.set(key, canonical);
   }
   return [...seen.values()];
 }

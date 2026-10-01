@@ -4,7 +4,7 @@ import { Octokit } from "@octokit/rest";
 import yaml from "js-yaml";
 import { bumpProblems, missingBumpTokenProblem, publishBumpAlert } from "../src/alerts.ts";
 import { MANIFEST_PATH, readManifest } from "../src/manifest.ts";
-import { bumpAll, unreachableRepos } from "../src/pr-bumper.ts";
+import { bumpAll, reposNeedingBumpToken } from "../src/pr-bumper.ts";
 import { Registry } from "../src/types.ts";
 
 // Exit codes: a broken registry or a missing manifest exits 1 (nothing can
@@ -50,20 +50,25 @@ async function main() {
     );
   }
 
-  // In Actions, GITHUB_TOKEN reaches only the repository running the
-  // workflow, so without BUMP_PR_TOKEN every consumer elsewhere fails with
-  // GitHub's 404. Report the missing secret once for all of them rather than
-  // one bare "cannot see" line per group. Every entry is still attempted, so
-  // an old name that redirects to this repository keeps working. (Run
-  // locally, GITHUB_TOKEN may be a personal token: its 404s are real access
-  // problems and are reported as they are.)
+  // In Actions, GITHUB_TOKEN can write only to the repository running the
+  // workflow. Without BUMP_PR_TOKEN, every consumer elsewhere either 404s
+  // (private) or can be read but never bumped (public), so report the missing
+  // secret once for all of them; a group that happens to be current must not
+  // close the alert while the secret is still missing. Every entry is still
+  // attempted first, so an old name that redirects to this repository keeps
+  // working. (Run locally, GITHUB_TOKEN may be a personal token: its results
+  // are reported as they are.)
   let problems = bumpProblems(results);
   if (!process.env.BUMP_PR_TOKEN && process.env.GITHUB_ACTIONS === "true") {
-    const unreachable = unreachableRepos(results);
-    if (unreachable.length) {
+    const thisRepo = process.env.GITHUB_REPOSITORY;
+    const needing = reposNeedingBumpToken(results, thisRepo);
+    if (needing.length) {
+      const blocked = new Set(needing.map((r) => r.toLowerCase()));
+      const isBlocked = (r: (typeof results)[number]) =>
+        blocked.has((r.unreachable ? r.repo : (r.resolved_repo ?? r.repo)).toLowerCase());
       problems = [
-        missingBumpTokenProblem(unreachable, process.env.GITHUB_REPOSITORY),
-        ...bumpProblems(results.filter((r) => !r.unreachable)),
+        missingBumpTokenProblem(needing, thisRepo),
+        ...bumpProblems(results.filter((r) => !isBlocked(r))),
       ];
     }
   }
