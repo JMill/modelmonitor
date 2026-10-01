@@ -990,6 +990,13 @@ export async function bumpAll(
       results.push(await bumpGroup(octokit, group, manifest, runUrl));
     } catch (err) {
       const status = statusOf(err);
+      // The partial result is gone with the throw, so look the repository up
+      // again: a rename must still be reported, and named by its current name.
+      const [owner, repo] = group.repo.split("/");
+      const current = await octokit.repos
+        .get({ owner, repo })
+        .then((r) => r.data.full_name)
+        .catch(() => undefined);
       results.push({
         repo: group.repo,
         family: group.family,
@@ -1000,6 +1007,9 @@ export async function bumpAll(
         file_results: [],
         unserved: [],
         superseded: [],
+        ...(current && current.toLowerCase() !== group.repo.toLowerCase()
+          ? { resolved_repo: current }
+          : {}),
         ...(status === 401 || status === 403 || status === 404 ? { denied: true } : {}),
       });
     }

@@ -1068,22 +1068,42 @@ describe("bump token access", () => {
     expect(pushModeProblems(results, "JMill/modelmonitor", false)[0]).toContain("bump failed");
   });
 
+  it("keeps a rename visible when the write in the renamed repo is refused", async () => {
+    gh.renameRepo(REPO, "JMill/tee-site-renamed");
+    gh.readOnlyRepos.add("jmill/tee-site-renamed");
+    const results = await bumpAll(
+      gh.asOctokit(),
+      [entry({ file: "packages/models/src/models.ts", family: "anthropic.sonnet", ...keyAnchored("sonnet") })],
+      manifest,
+      undefined,
+    );
+    expect(results[0].denied).toBe(true);
+    expect(results[0].resolved_repo).toBe("JMill/tee-site-renamed");
+    expect(pushModeProblems(results, "JMill/modelmonitor", true)).toEqual([
+      missingBumpTokenProblem(["JMill/tee-site-renamed"], "JMill/modelmonitor"),
+      expect.stringContaining("GitHub now names this repo `JMill/tee-site-renamed`"),
+    ]);
+  });
+
   it("still reports a pattern that matches nothing in a repo waiting on the secret", async () => {
     const results = await bumpAll(
       gh.asOctokit(),
       [
         entry({ repo: "JMill/private-elsewhere", file: "a.ts", family: "anthropic.opus", ...keyAnchored("opus") }),
-        // Readable, so the drifted pattern is visible now: adding the secret
-        // must not be what uncovers it.
+        // Readable, so the drifted pattern is visible now and holds its group
+        // before any write: adding the secret must not be what uncovers it.
+        entry({ file: "packages/models/src/models.ts", family: "anthropic.sonnet", ...keyAnchored("sonnet") }),
         entry({ file: "README.md", family: "anthropic.sonnet", ...keyAnchored("sonnet") }),
       ],
       manifest,
       undefined,
     );
-    expect(results.map((r) => r.status)).toEqual(["failed", "skipped_no_match"]);
+    expect(results.map((r) => r.status)).toEqual(["failed", "failed"]);
+    expect(results[1].denied).toBeUndefined();
     const problems = pushModeProblems(results, "JMill/modelmonitor", true);
     expect(problems).toEqual([
       missingBumpTokenProblem(["JMill/private-elsewhere", REPO], "JMill/modelmonitor"),
+      expect.stringContaining("bump failed: no PR opened: this group's files change together, and README.md matched nothing"),
       expect.stringContaining("`README.md`: pattern matched nothing"),
     ]);
     expect(problems.join("\n")).not.toContain("GitHub returned 404");

@@ -143,9 +143,11 @@ export function pushModeProblems(
   const tokenFailure = (r: GroupResult) =>
     Boolean(r.unreachable || r.denied) &&
     blocked.has((r.unreachable ? r.repo : (r.resolved_repo ?? r.repo)).toLowerCase());
+  // Drop just the token's error from those results; a rename they carry is
+  // still reported.
   return [
     missingBumpTokenProblem(needing, thisRepo),
-    ...bumpProblems(results.filter((r) => !tokenFailure(r))),
+    ...bumpProblems(results.map((r) => (tokenFailure(r) ? { ...r, error: undefined } : r))),
   ];
 }
 
