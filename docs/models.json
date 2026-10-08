@@ -1,10 +1,180 @@
 {
   "$schema": "https://jmill.github.io/modelmonitor/schema.json",
   "version": "1",
-  "generated_at": "2026-10-07T09:21:50.465Z",
+  "generated_at": "2026-10-08T09:22:20.277Z",
   "providers": {
     "anthropic": {
       "families": {
+        "haiku": {
+          "recommended": "claude-haiku-5-5",
+          "all": [
+            {
+              "id": "claude-haiku-5-5",
+              "display_name": "Claude Haiku 5.5",
+              "created_at": "2026-10-07T18:00:00Z",
+              "deprecated": false,
+              "max_input_tokens": 1000000,
+              "max_tokens": 128000,
+              "capabilities": {
+                "batch": {
+                  "supported": true
+                },
+                "citations": {
+                  "supported": true
+                },
+                "code_execution": {
+                  "supported": true
+                },
+                "context_management": {
+                  "supported": true,
+                  "clear_tool_uses_20250919": {
+                    "supported": true
+                  },
+                  "clear_thinking_20251015": {
+                    "supported": true
+                  },
+                  "compact_20260112": {
+                    "supported": true
+                  }
+                },
+                "effort": {
+                  "supported": true,
+                  "low": {
+                    "supported": true
+                  },
+                  "medium": {
+                    "supported": true
+                  },
+                  "high": {
+                    "supported": true
+                  },
+                  "xhigh": {
+                    "supported": true
+                  },
+                  "max": {
+                    "supported": true
+                  }
+                },
+                "image_input": {
+                  "supported": true
+                },
+                "pdf_input": {
+                  "supported": true
+                },
+                "server_tools": {
+                  "supported": true,
+                  "code_execution": {
+                    "supported": true
+                  },
+                  "web_search": {
+                    "supported": true
+                  }
+                },
+                "structured_outputs": {
+                  "supported": true
+                },
+                "thinking": {
+                  "supported": true,
+                  "types": {
+                    "enabled": {
+                      "supported": false
+                    },
+                    "adaptive": {
+                      "supported": true
+                    },
+                    "disabled": {
+                      "supported": true
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "id": "claude-haiku-4-5-20251001",
+              "display_name": "Claude Haiku 4.5",
+              "created_at": "2025-10-15T00:00:00Z",
+              "deprecated": false,
+              "max_input_tokens": 200000,
+              "max_tokens": 64000,
+              "capabilities": {
+                "batch": {
+                  "supported": true
+                },
+                "citations": {
+                  "supported": true
+                },
+                "code_execution": {
+                  "supported": false
+                },
+                "context_management": {
+                  "supported": true,
+                  "clear_tool_uses_20250919": {
+                    "supported": true
+                  },
+                  "clear_thinking_20251015": {
+                    "supported": true
+                  },
+                  "compact_20260112": {
+                    "supported": false
+                  }
+                },
+                "effort": {
+                  "supported": false,
+                  "low": {
+                    "supported": false
+                  },
+                  "medium": {
+                    "supported": false
+                  },
+                  "high": {
+                    "supported": false
+                  },
+                  "xhigh": {
+                    "supported": false
+                  },
+                  "max": {
+                    "supported": false
+                  }
+                },
+                "image_input": {
+                  "supported": true
+                },
+                "pdf_input": {
+                  "supported": true
+                },
+                "server_tools": {
+                  "supported": true,
+                  "code_execution": {
+                    "supported": true
+                  },
+                  "web_search": {
+                    "supported": true
+                  }
+                },
+                "structured_outputs": {
+                  "supported": true
+                },
+                "thinking": {
+                  "supported": true,
+                  "types": {
+                    "enabled": {
+                      "supported": true
+                    },
+                    "adaptive": {
+                      "supported": false
+                    },
+                    "disabled": {
+                      "supported": true
+                    }
+                  }
+                }
+              },
+              "aliases": [
+                "claude-haiku-4-5"
+              ]
+            }
+          ]
+        },
         "sonnet": {
           "recommended": "claude-sonnet-5-5",
           "all": [
@@ -256,7 +426,7 @@
               "display_name": "Claude Sonnet 4.5",
               "created_at": "2025-09-29T00:00:00Z",
               "deprecated": false,
-              "max_input_tokens": 1000000,
+              "max_input_tokens": 200000,
               "max_tokens": 64000,
               "capabilities": {
                 "batch": {
@@ -997,101 +1167,46 @@
               }
             }
           ]
-        },
-        "haiku": {
-          "recommended": "claude-haiku-4-5-20251001",
-          "recommended_alias": "claude-haiku-4-5",
-          "all": [
-            {
-              "id": "claude-haiku-4-5-20251001",
-              "display_name": "Claude Haiku 4.5",
-              "created_at": "2025-10-15T00:00:00Z",
-              "deprecated": false,
-              "max_input_tokens": 200000,
-              "max_tokens": 64000,
-              "capabilities": {
-                "batch": {
-                  "supported": true
-                },
-                "citations": {
-                  "supported": true
-                },
-                "code_execution": {
-                  "supported": false
-                },
-                "context_management": {
-                  "supported": true,
-                  "clear_tool_uses_20250919": {
-                    "supported": true
-                  },
-                  "clear_thinking_20251015": {
-                    "supported": true
-                  },
-                  "compact_20260112": {
-                    "supported": false
-                  }
-                },
-                "effort": {
-                  "supported": false,
-                  "low": {
-                    "supported": false
-                  },
-                  "medium": {
-                    "supported": false
-                  },
-                  "high": {
-                    "supported": false
-                  },
-                  "xhigh": {
-                    "supported": false
-                  },
-                  "max": {
-                    "supported": false
-                  }
-                },
-                "image_input": {
-                  "supported": true
-                },
-                "pdf_input": {
-                  "supported": true
-                },
-                "server_tools": {
-                  "supported": true,
-                  "code_execution": {
-                    "supported": true
-                  },
-                  "web_search": {
-                    "supported": true
-                  }
-                },
-                "structured_outputs": {
-                  "supported": true
-                },
-                "thinking": {
-                  "supported": true,
-                  "types": {
-                    "enabled": {
-                      "supported": true
-                    },
-                    "adaptive": {
-                      "supported": false
-                    },
-                    "disabled": {
-                      "supported": true
-                    }
-                  }
-                }
-              },
-              "aliases": [
-                "claude-haiku-4-5"
-              ]
-            }
-          ]
         }
       }
     },
     "openai": {
       "families": {
+        "gpt-3.5": {
+          "recommended": "gpt-3.5-turbo-0125",
+          "all": [
+            {
+              "id": "gpt-3.5-turbo-0125",
+              "created_at": "2024-01-23T22:19:18.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-3.5-turbo-1106",
+              "created_at": "2023-11-02T21:15:48.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-3.5-turbo-instruct-0914",
+              "created_at": "2023-09-07T21:34:32.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-3.5-turbo-instruct",
+              "created_at": "2023-08-24T18:23:47.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-3.5-turbo-16k",
+              "created_at": "2023-05-10T22:35:02.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-3.5-turbo",
+              "created_at": "2023-02-28T18:56:42.000Z",
+              "deprecated": false
+            }
+          ]
+        },
         "gpt-5": {
           "recommended": "gpt-5.6-luna",
           "all": [
@@ -1292,31 +1407,6 @@
             }
           ]
         },
-        "gpt-4": {
-          "recommended": "gpt-4-turbo-2024-04-09",
-          "all": [
-            {
-              "id": "gpt-4-turbo-2024-04-09",
-              "created_at": "2024-04-08T18:41:17.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4-turbo",
-              "created_at": "2024-04-05T23:57:21.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4",
-              "created_at": "2023-06-27T16:13:31.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4-0613",
-              "created_at": "2023-06-12T16:54:56.000Z",
-              "deprecated": false
-            }
-          ]
-        },
         "o-series": {
           "recommended": "o3-pro-2025-06-10",
           "all": [
@@ -1382,76 +1472,6 @@
             }
           ]
         },
-        "gpt-4.1": {
-          "recommended": "gpt-4.1",
-          "all": [
-            {
-              "id": "gpt-4.1-nano",
-              "created_at": "2025-04-10T21:48:27.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4.1-nano-2025-04-14",
-              "created_at": "2025-04-10T21:37:05.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4.1-mini",
-              "created_at": "2025-04-10T20:49:33.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4.1-mini-2025-04-14",
-              "created_at": "2025-04-10T20:39:07.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4.1",
-              "created_at": "2025-04-10T20:22:22.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4.1-2025-04-14",
-              "created_at": "2025-04-10T20:09:06.000Z",
-              "deprecated": false
-            }
-          ]
-        },
-        "gpt-3.5": {
-          "recommended": "gpt-3.5-turbo-0125",
-          "all": [
-            {
-              "id": "gpt-3.5-turbo-0125",
-              "created_at": "2024-01-23T22:19:18.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-3.5-turbo-1106",
-              "created_at": "2023-11-02T21:15:48.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-3.5-turbo-instruct-0914",
-              "created_at": "2023-09-07T21:34:32.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-3.5-turbo-instruct",
-              "created_at": "2023-08-24T18:23:47.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-3.5-turbo-16k",
-              "created_at": "2023-05-10T22:35:02.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-3.5-turbo",
-              "created_at": "2023-02-28T18:56:42.000Z",
-              "deprecated": false
-            }
-          ]
-        },
         "gpt-4o": {
           "recommended": "gpt-4o-2024-11-20",
           "all": [
@@ -1483,6 +1503,66 @@
             {
               "id": "gpt-4o",
               "created_at": "2024-05-10T18:50:49.000Z",
+              "deprecated": false
+            }
+          ]
+        },
+        "gpt-4": {
+          "recommended": "gpt-4-turbo-2024-04-09",
+          "all": [
+            {
+              "id": "gpt-4-turbo-2024-04-09",
+              "created_at": "2024-04-08T18:41:17.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4-turbo",
+              "created_at": "2024-04-05T23:57:21.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4",
+              "created_at": "2023-06-27T16:13:31.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4-0613",
+              "created_at": "2023-06-12T16:54:56.000Z",
+              "deprecated": false
+            }
+          ]
+        },
+        "gpt-4.1": {
+          "recommended": "gpt-4.1",
+          "all": [
+            {
+              "id": "gpt-4.1-nano",
+              "created_at": "2025-04-10T21:48:27.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4.1-nano-2025-04-14",
+              "created_at": "2025-04-10T21:37:05.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4.1-mini",
+              "created_at": "2025-04-10T20:49:33.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4.1-mini-2025-04-14",
+              "created_at": "2025-04-10T20:39:07.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4.1",
+              "created_at": "2025-04-10T20:22:22.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4.1-2025-04-14",
+              "created_at": "2025-04-10T20:09:06.000Z",
               "deprecated": false
             }
           ]
