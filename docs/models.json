@@ -1,7 +1,7 @@
 {
   "$schema": "https://jmill.github.io/modelmonitor/schema.json",
   "version": "1",
-  "generated_at": "2026-10-15T09:18:57.793Z",
+  "generated_at": "2026-10-16T09:18:11.472Z",
   "providers": {
     "anthropic": {
       "families": {
@@ -84,6 +84,9 @@
                     },
                     "disabled": {
                       "supported": true
+                    },
+                    "between_tools": {
+                      "supported": false
                     }
                   }
                 }
@@ -165,6 +168,9 @@
                     },
                     "disabled": {
                       "supported": true
+                    },
+                    "between_tools": {
+                      "supported": false
                     }
                   }
                 }
@@ -254,6 +260,9 @@
                     },
                     "disabled": {
                       "supported": false
+                    },
+                    "between_tools": {
+                      "supported": true
                     }
                   }
                 }
@@ -335,6 +344,9 @@
                     },
                     "disabled": {
                       "supported": true
+                    },
+                    "between_tools": {
+                      "supported": false
                     }
                   }
                 }
@@ -416,6 +428,9 @@
                     },
                     "disabled": {
                       "supported": true
+                    },
+                    "between_tools": {
+                      "supported": false
                     }
                   }
                 }
@@ -497,6 +512,9 @@
                     },
                     "disabled": {
                       "supported": true
+                    },
+                    "between_tools": {
+                      "supported": false
                     }
                   }
                 }
@@ -586,6 +604,9 @@
                     },
                     "disabled": {
                       "supported": false
+                    },
+                    "between_tools": {
+                      "supported": false
                     }
                   }
                 }
@@ -667,6 +688,9 @@
                     },
                     "disabled": {
                       "supported": true
+                    },
+                    "between_tools": {
+                      "supported": false
                     }
                   }
                 }
@@ -748,6 +772,9 @@
                     },
                     "disabled": {
                       "supported": true
+                    },
+                    "between_tools": {
+                      "supported": false
                     }
                   }
                 }
@@ -829,6 +856,9 @@
                     },
                     "disabled": {
                       "supported": true
+                    },
+                    "between_tools": {
+                      "supported": false
                     }
                   }
                 }
@@ -910,6 +940,9 @@
                     },
                     "disabled": {
                       "supported": true
+                    },
+                    "between_tools": {
+                      "supported": false
                     }
                   }
                 }
@@ -991,6 +1024,9 @@
                     },
                     "disabled": {
                       "supported": true
+                    },
+                    "between_tools": {
+                      "supported": false
                     }
                   }
                 }
@@ -1080,6 +1116,9 @@
                     },
                     "disabled": {
                       "supported": false
+                    },
+                    "between_tools": {
+                      "supported": false
                     }
                   }
                 }
@@ -1160,6 +1199,9 @@
                       "supported": true
                     },
                     "disabled": {
+                      "supported": false
+                    },
+                    "between_tools": {
                       "supported": false
                     }
                   }
@@ -1397,6 +1439,41 @@
             }
           ]
         },
+        "gpt-3.5": {
+          "recommended": "gpt-3.5-turbo-0125",
+          "all": [
+            {
+              "id": "gpt-3.5-turbo-0125",
+              "created_at": "2024-01-23T22:19:18.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-3.5-turbo-1106",
+              "created_at": "2023-11-02T21:15:48.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-3.5-turbo-instruct-0914",
+              "created_at": "2023-09-07T21:34:32.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-3.5-turbo-instruct",
+              "created_at": "2023-08-24T18:23:47.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-3.5-turbo-16k",
+              "created_at": "2023-05-10T22:35:02.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-3.5-turbo",
+              "created_at": "2023-02-28T18:56:42.000Z",
+              "deprecated": false
+            }
+          ]
+        },
         "o-series": {
           "recommended": "o3-pro-2025-06-10",
           "all": [
@@ -1528,41 +1605,6 @@
             {
               "id": "gpt-4.1-2025-04-14",
               "created_at": "2025-04-10T20:09:06.000Z",
-              "deprecated": false
-            }
-          ]
-        },
-        "gpt-3.5": {
-          "recommended": "gpt-3.5-turbo-0125",
-          "all": [
-            {
-              "id": "gpt-3.5-turbo-0125",
-              "created_at": "2024-01-23T22:19:18.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-3.5-turbo-1106",
-              "created_at": "2023-11-02T21:15:48.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-3.5-turbo-instruct-0914",
-              "created_at": "2023-09-07T21:34:32.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-3.5-turbo-instruct",
-              "created_at": "2023-08-24T18:23:47.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-3.5-turbo-16k",
-              "created_at": "2023-05-10T22:35:02.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-3.5-turbo",
-              "created_at": "2023-02-28T18:56:42.000Z",
               "deprecated": false
             }
           ]
