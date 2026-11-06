@@ -1,7 +1,7 @@
 {
   "$schema": "https://jmill.github.io/modelmonitor/schema.json",
   "version": "1",
-  "generated_at": "2026-11-05T09:12:57.815Z",
+  "generated_at": "2026-11-06T09:12:53.486Z",
   "providers": {
     "anthropic": {
       "families": {
@@ -1369,6 +1369,31 @@
             }
           ]
         },
+        "gpt-4.1": {
+          "recommended": "gpt-4.1",
+          "all": [
+            {
+              "id": "gpt-4.1-mini",
+              "created_at": "2025-04-10T20:49:33.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4.1-mini-2025-04-14",
+              "created_at": "2025-04-10T20:39:07.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4.1",
+              "created_at": "2025-04-10T20:22:22.000Z",
+              "deprecated": false
+            },
+            {
+              "id": "gpt-4.1-2025-04-14",
+              "created_at": "2025-04-10T20:09:06.000Z",
+              "deprecated": false
+            }
+          ]
+        },
         "gpt-4o": {
           "recommended": "gpt-4o-2024-11-20",
           "all": [
@@ -1420,31 +1445,6 @@
             {
               "id": "o3-2025-04-16",
               "created_at": "2025-04-08T17:28:21.000Z",
-              "deprecated": false
-            }
-          ]
-        },
-        "gpt-4.1": {
-          "recommended": "gpt-4.1",
-          "all": [
-            {
-              "id": "gpt-4.1-mini",
-              "created_at": "2025-04-10T20:49:33.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4.1-mini-2025-04-14",
-              "created_at": "2025-04-10T20:39:07.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4.1",
-              "created_at": "2025-04-10T20:22:22.000Z",
-              "deprecated": false
-            },
-            {
-              "id": "gpt-4.1-2025-04-14",
-              "created_at": "2025-04-10T20:09:06.000Z",
               "deprecated": false
             }
           ]
