@@ -1,10 +1,267 @@
 {
   "$schema": "https://jmill.github.io/modelmonitor/schema.json",
   "version": "1",
-  "generated_at": "2026-11-09T09:16:31.727Z",
+  "generated_at": "2026-11-10T09:12:25.001Z",
   "providers": {
     "anthropic": {
       "families": {
+        "fable": {
+          "recommended": "claude-fable-5-2",
+          "all": [
+            {
+              "id": "claude-fable-5-2",
+              "display_name": "Claude Fable 5.2",
+              "created_at": "2026-11-09T18:30:00Z",
+              "deprecated": false,
+              "max_input_tokens": 1000000,
+              "max_tokens": 128000,
+              "capabilities": {
+                "batch": {
+                  "supported": true
+                },
+                "citations": {
+                  "supported": true
+                },
+                "code_execution": {
+                  "supported": true
+                },
+                "context_management": {
+                  "supported": true,
+                  "clear_tool_uses_20250919": {
+                    "supported": true
+                  },
+                  "clear_thinking_20251015": {
+                    "supported": true
+                  },
+                  "compact_20260112": {
+                    "supported": true
+                  }
+                },
+                "effort": {
+                  "supported": true,
+                  "low": {
+                    "supported": true
+                  },
+                  "medium": {
+                    "supported": true
+                  },
+                  "high": {
+                    "supported": true
+                  },
+                  "xhigh": {
+                    "supported": true
+                  },
+                  "max": {
+                    "supported": true
+                  }
+                },
+                "image_input": {
+                  "supported": true
+                },
+                "pdf_input": {
+                  "supported": true
+                },
+                "server_tools": {
+                  "supported": true,
+                  "code_execution": {
+                    "supported": true
+                  },
+                  "web_search": {
+                    "supported": true
+                  }
+                },
+                "structured_outputs": {
+                  "supported": true
+                },
+                "thinking": {
+                  "supported": true,
+                  "types": {
+                    "enabled": {
+                      "supported": false
+                    },
+                    "adaptive": {
+                      "supported": true
+                    },
+                    "disabled": {
+                      "supported": false
+                    },
+                    "between_tools": {
+                      "supported": false
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "id": "claude-fable-5-1",
+              "display_name": "Claude Fable 5.1",
+              "created_at": "2026-08-28T00:00:00Z",
+              "deprecated": false,
+              "max_input_tokens": 1000000,
+              "max_tokens": 128000,
+              "capabilities": {
+                "batch": {
+                  "supported": true
+                },
+                "citations": {
+                  "supported": true
+                },
+                "code_execution": {
+                  "supported": true
+                },
+                "context_management": {
+                  "supported": true,
+                  "clear_tool_uses_20250919": {
+                    "supported": true
+                  },
+                  "clear_thinking_20251015": {
+                    "supported": true
+                  },
+                  "compact_20260112": {
+                    "supported": true
+                  }
+                },
+                "effort": {
+                  "supported": true,
+                  "low": {
+                    "supported": true
+                  },
+                  "medium": {
+                    "supported": true
+                  },
+                  "high": {
+                    "supported": true
+                  },
+                  "xhigh": {
+                    "supported": true
+                  },
+                  "max": {
+                    "supported": true
+                  }
+                },
+                "image_input": {
+                  "supported": true
+                },
+                "pdf_input": {
+                  "supported": true
+                },
+                "server_tools": {
+                  "supported": true,
+                  "code_execution": {
+                    "supported": true
+                  },
+                  "web_search": {
+                    "supported": true
+                  }
+                },
+                "structured_outputs": {
+                  "supported": true
+                },
+                "thinking": {
+                  "supported": true,
+                  "types": {
+                    "enabled": {
+                      "supported": false
+                    },
+                    "adaptive": {
+                      "supported": true
+                    },
+                    "disabled": {
+                      "supported": false
+                    },
+                    "between_tools": {
+                      "supported": false
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "id": "claude-fable-5",
+              "display_name": "Claude Fable 5",
+              "created_at": "2026-06-07T00:00:00Z",
+              "deprecated": false,
+              "max_input_tokens": 1000000,
+              "max_tokens": 128000,
+              "capabilities": {
+                "batch": {
+                  "supported": true
+                },
+                "citations": {
+                  "supported": true
+                },
+                "code_execution": {
+                  "supported": true
+                },
+                "context_management": {
+                  "supported": true,
+                  "clear_tool_uses_20250919": {
+                    "supported": true
+                  },
+                  "clear_thinking_20251015": {
+                    "supported": true
+                  },
+                  "compact_20260112": {
+                    "supported": true
+                  }
+                },
+                "effort": {
+                  "supported": true,
+                  "low": {
+                    "supported": true
+                  },
+                  "medium": {
+                    "supported": true
+                  },
+                  "high": {
+                    "supported": true
+                  },
+                  "xhigh": {
+                    "supported": true
+                  },
+                  "max": {
+                    "supported": true
+                  }
+                },
+                "image_input": {
+                  "supported": true
+                },
+                "pdf_input": {
+                  "supported": true
+                },
+                "server_tools": {
+                  "supported": true,
+                  "code_execution": {
+                    "supported": true
+                  },
+                  "web_search": {
+                    "supported": true
+                  }
+                },
+                "structured_outputs": {
+                  "supported": true
+                },
+                "thinking": {
+                  "supported": true,
+                  "types": {
+                    "enabled": {
+                      "supported": false
+                    },
+                    "adaptive": {
+                      "supported": true
+                    },
+                    "disabled": {
+                      "supported": false
+                    },
+                    "between_tools": {
+                      "supported": false
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
         "haiku": {
           "recommended": "claude-haiku-5-5",
           "all": [
@@ -1034,179 +1291,6 @@
               "aliases": [
                 "claude-opus-4-5"
               ]
-            }
-          ]
-        },
-        "fable": {
-          "recommended": "claude-fable-5-1",
-          "all": [
-            {
-              "id": "claude-fable-5-1",
-              "display_name": "Claude Fable 5.1",
-              "created_at": "2026-08-28T00:00:00Z",
-              "deprecated": false,
-              "max_input_tokens": 1000000,
-              "max_tokens": 128000,
-              "capabilities": {
-                "batch": {
-                  "supported": true
-                },
-                "citations": {
-                  "supported": true
-                },
-                "code_execution": {
-                  "supported": true
-                },
-                "context_management": {
-                  "supported": true,
-                  "clear_tool_uses_20250919": {
-                    "supported": true
-                  },
-                  "clear_thinking_20251015": {
-                    "supported": true
-                  },
-                  "compact_20260112": {
-                    "supported": true
-                  }
-                },
-                "effort": {
-                  "supported": true,
-                  "low": {
-                    "supported": true
-                  },
-                  "medium": {
-                    "supported": true
-                  },
-                  "high": {
-                    "supported": true
-                  },
-                  "xhigh": {
-                    "supported": true
-                  },
-                  "max": {
-                    "supported": true
-                  }
-                },
-                "image_input": {
-                  "supported": true
-                },
-                "pdf_input": {
-                  "supported": true
-                },
-                "server_tools": {
-                  "supported": true,
-                  "code_execution": {
-                    "supported": true
-                  },
-                  "web_search": {
-                    "supported": true
-                  }
-                },
-                "structured_outputs": {
-                  "supported": true
-                },
-                "thinking": {
-                  "supported": true,
-                  "types": {
-                    "enabled": {
-                      "supported": false
-                    },
-                    "adaptive": {
-                      "supported": true
-                    },
-                    "disabled": {
-                      "supported": false
-                    },
-                    "between_tools": {
-                      "supported": false
-                    }
-                  }
-                }
-              }
-            },
-            {
-              "id": "claude-fable-5",
-              "display_name": "Claude Fable 5",
-              "created_at": "2026-06-07T00:00:00Z",
-              "deprecated": false,
-              "max_input_tokens": 1000000,
-              "max_tokens": 128000,
-              "capabilities": {
-                "batch": {
-                  "supported": true
-                },
-                "citations": {
-                  "supported": true
-                },
-                "code_execution": {
-                  "supported": true
-                },
-                "context_management": {
-                  "supported": true,
-                  "clear_tool_uses_20250919": {
-                    "supported": true
-                  },
-                  "clear_thinking_20251015": {
-                    "supported": true
-                  },
-                  "compact_20260112": {
-                    "supported": true
-                  }
-                },
-                "effort": {
-                  "supported": true,
-                  "low": {
-                    "supported": true
-                  },
-                  "medium": {
-                    "supported": true
-                  },
-                  "high": {
-                    "supported": true
-                  },
-                  "xhigh": {
-                    "supported": true
-                  },
-                  "max": {
-                    "supported": true
-                  }
-                },
-                "image_input": {
-                  "supported": true
-                },
-                "pdf_input": {
-                  "supported": true
-                },
-                "server_tools": {
-                  "supported": true,
-                  "code_execution": {
-                    "supported": true
-                  },
-                  "web_search": {
-                    "supported": true
-                  }
-                },
-                "structured_outputs": {
-                  "supported": true
-                },
-                "thinking": {
-                  "supported": true,
-                  "types": {
-                    "enabled": {
-                      "supported": false
-                    },
-                    "adaptive": {
-                      "supported": true
-                    },
-                    "disabled": {
-                      "supported": false
-                    },
-                    "between_tools": {
-                      "supported": false
-                    }
-                  }
-                }
-              }
             }
           ]
         }
