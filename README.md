@@ -8,6 +8,8 @@ subscribe to automatic bump PRs against their repo (push).
 - Manifest URL: <https://jmill.github.io/modelmonitor/models.json>
 - JSON Schema: <https://jmill.github.io/modelmonitor/schema.json>
 
+For repository work in Claude or Codex, start with [AGENTS.md](AGENTS.md).
+
 ## Pull mode
 
 Fetch the manifest at build time or boot time and read the recommended ID for
@@ -409,8 +411,8 @@ npm run typecheck
 npm test
 npm run registry:check
 
-# Dry run against the live APIs (writes docs/models.json locally; any
-# subset of the keys works)
+# Live refresh (writes docs/models.json; configured GitHub/webhook credentials
+# can also send alerts). Any subset of provider keys works.
 ANTHROPIC_API_KEY=… OPENAI_API_KEY=… GOOGLE_API_KEY=… npm run check
 ```
 
